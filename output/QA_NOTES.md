@@ -50,3 +50,30 @@ data folder).
   removed from the tracked set.
 - The remaining screenshots are illustrative captures taken during manual QA,
   not a full automated suite. Re-run a packaged build before cutting a release.
+
+## 2026-08-24 interactive verification (DevTools / CDP)
+
+Verified by driving the real packaged build over WebView2 DevTools from a local
+Node CDP helper (no screenshots needed; DOM state read directly):
+
+- IPC into the remote Harness page works after the ACL work: `runtime_status`,
+  `update_status`, `marketplace_status` all return real data from the overlay.
+- Bug found: `update_status` returns snake_case keys (`installed_version`,
+  `latest_version`, `update_available`), but the overlay read camelCase
+  (`installedVersion`...), so the panel showed the version as "未安装". Fixed in
+  `overlay.rs` to read the snake_case keys. Panel now shows `0.1.1-rc.2 最新`.
+- Bug found: the marketplace button selector `.deepx-market` matched the status
+  span first (document order), so the click handler attached to the `<span>` and
+  the real button had no `onclick`. Changed to `.deepx-btn.deepx-market`. The
+  button now runs `install_marketplace` ("准备插件市场..." -> "插件市场已就绪").
+- Clicked the update button end to end: stops the harness service, reinstalls
+  the runtime, relaunches `web --no-open --port 3080`, and navigates back. The
+  service returned 200 after the cycle with a fresh process.
+- Marketplace one-click install verified: adds `dshmarket ^1.20.2` to the web
+  profile and pulls its dependency tree. After install the panel reports
+  "已安装" and `marketplace_status.installed` is true.
+- Launches do not open a browser (`--no-open`); a launch with an already-seeded
+  runtime goes straight to the Harness without reinstalling dependencies.
+- Note: a plain `cargo build --release` embeds the dev URL, so the tray/webview
+  pointed at `localhost:1420`. The correct build path is `pnpm tauri build
+  --no-bundle` (sets prod config and embeds `dist/`).

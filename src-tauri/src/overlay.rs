@@ -43,9 +43,9 @@ function setProgress(value) {
 }
 function refresh() {
   invoke?.('update_status').then(status => {
-    const installed = status.installedVersion || '未安装';
-    const latest = status.latestVersion || '未知';
-    panel.querySelector('.deepx-version').textContent = status.updateAvailable ? `${installed} → ${latest}` : `${installed} 最新`;
+    const installed = status.installed_version || '未安装';
+    const latest = status.latest_version || '未知';
+    panel.querySelector('.deepx-version').textContent = status.update_available ? `${installed} → ${latest}` : `${installed} 最新`;
   }).catch(() => panel.querySelector('.deepx-version').textContent = '不可用');
   invoke?.('marketplace_status').then(status => {
     panel.querySelector('.deepx-market').textContent = status.installed ? '已安装' : '尚未安装';
@@ -66,7 +66,7 @@ function drawPanel() {
     try { setBusy(true, '开始更新...'); await invoke('update_harness'); setBusy(false, 'Harness 已更新'); refresh(); }
     catch (error) { setBusy(false, String(error), true); setProgress(0); }
   };
-  panel.querySelector('.deepx-market').onclick = async () => {
+  panel.querySelector('.deepx-btn.deepx-market').onclick = async () => {
     if (busy || !invoke) return;
     try { setBusy(true, '准备插件市场...'); await invoke('install_marketplace'); setBusy(false, '插件市场已就绪'); refresh(); }
     catch (error) { setBusy(false, String(error), true); setProgress(0); }

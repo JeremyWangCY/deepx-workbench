@@ -345,6 +345,90 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the install_marketplace command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-install-marketplace",
+          "markdownDescription": "Enables the install_marketplace command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the launch_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-launch-harness",
+          "markdownDescription": "Enables the launch_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the marketplace_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-marketplace-status",
+          "markdownDescription": "Enables the marketplace_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the runtime_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-runtime-status",
+          "markdownDescription": "Enables the runtime_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the show_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-show-harness",
+          "markdownDescription": "Enables the show_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-harness",
+          "markdownDescription": "Enables the update_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the update_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-update-status",
+          "markdownDescription": "Enables the update_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the install_marketplace command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-install-marketplace",
+          "markdownDescription": "Denies the install_marketplace command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the launch_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-launch-harness",
+          "markdownDescription": "Denies the launch_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the marketplace_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-marketplace-status",
+          "markdownDescription": "Denies the marketplace_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the runtime_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-runtime-status",
+          "markdownDescription": "Denies the runtime_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the show_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-show-harness",
+          "markdownDescription": "Denies the show_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_harness command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-harness",
+          "markdownDescription": "Denies the update_harness command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the update_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-update-status",
+          "markdownDescription": "Denies the update_status command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",
