@@ -96,7 +96,7 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     let mut command = Command::new(node_bin(&app));
     command
         .arg(dsh_entry(&app))
-        .args(["web", "--port", "3080"])
+        .args(["web", "--no-open", "--port", "3080"])
         .env("DSH_HOME", app.path().app_data_dir().unwrap().join("dsh"));
     hidden(&mut command);
     command
@@ -171,3 +171,4 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
     emit_progress(&app, 100, "插件市场已就绪");
     Ok(())
 }
+
