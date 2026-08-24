@@ -1,0 +1,1 @@
+{"$schema":"../gen/schemas/desktop-schema.json","identifier":"default","description":"DeepX local Harness shell","windows":["main"],"remote":{"urls":["http://127.0.0.1:*"]},"permissions":["core:default","core:event:default","core:window:default","opener:default"]}

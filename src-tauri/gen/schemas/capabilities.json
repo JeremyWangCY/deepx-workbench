@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"DeepX local Harness shell","remote":{"urls":["http://127.0.0.1:*"]},"local":true,"windows":["main"],"permissions":["core:default","core:event:default","core:window:default","opener:default"]}}
