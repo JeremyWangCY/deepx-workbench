@@ -1,8 +1,8 @@
 use crate::{
     dsh_entry, emit_progress, harness_package_manifest, healthy, hidden, install_runtime,
-    marketplace_installed, migrate_private_plugins, node_bin, overlay_script, run_output_with_timeout,
-    runtime_dir, set_update_channel, stop_harness_service, update_channel, update_runtime, valid_runtime,
-    write_no_browser_patch, UpdateChannel,
+    marketplace_installed, migrate_private_plugins, node_bin, overlay_script,
+    run_output_with_timeout, runtime_dir, set_update_channel, stop_harness_service, update_channel,
+    update_runtime, valid_runtime, write_no_browser_patch, UpdateChannel,
 };
 use serde::{Deserialize, Serialize};
 use std::{fs, process::Command, time::Duration};
@@ -114,7 +114,14 @@ async fn wait_for_harness(
         }
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
             let log = fs::read_to_string(log_path).unwrap_or_default();
-            let detail = log.chars().rev().take(1_500).collect::<String>().chars().rev().collect::<String>();
+            let detail = log
+                .chars()
+                .rev()
+                .take(1_500)
+                .collect::<String>()
+                .chars()
+                .rev()
+                .collect::<String>();
             return Err(if detail.trim().is_empty() {
                 format!("Harness 启动失败（退出码 {:?}）", status.code())
             } else {
@@ -167,7 +174,9 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     hidden(&mut command);
     let mut child = command
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::from(log.try_clone().map_err(|error| error.to_string())?))
+        .stdout(std::process::Stdio::from(
+            log.try_clone().map_err(|error| error.to_string())?,
+        ))
         .stderr(std::process::Stdio::from(log))
         .spawn()
         .map_err(|error| error.to_string())?;
@@ -235,7 +244,10 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
                 )
             })
             .ok_or("最新 DeepX Release 中没有 Windows x64 安装包")?;
-        let cache = app.path().app_cache_dir().map_err(|error| error.to_string())?;
+        let cache = app
+            .path()
+            .app_cache_dir()
+            .map_err(|error| error.to_string())?;
         fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
         let installer = cache.join("deepx-workbench-update.exe");
         emit_progress(&app, 25, format!("正在下载 DeepX {tag}..."));

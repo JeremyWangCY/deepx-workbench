@@ -20,7 +20,6 @@ pub(crate) enum UpdateChannel {
     Next,
 }
 
-
 const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
 
 const REQUIRED_DSH_PEERS: [&str; 19] = [
@@ -46,7 +45,6 @@ const REQUIRED_DSH_PEERS: [&str; 19] = [
 ];
 
 impl UpdateChannel {
-
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Latest => "latest",
@@ -130,7 +128,8 @@ pub(crate) fn valid_runtime(app: &AppHandle) -> bool {
 }
 
 fn harness_version(app: &AppHandle) -> Result<String, String> {
-    let manifest = fs::read_to_string(harness_package_manifest(app)).map_err(|error| error.to_string())?;
+    let manifest =
+        fs::read_to_string(harness_package_manifest(app)).map_err(|error| error.to_string())?;
     serde_json::from_str::<serde_json::Value>(&manifest)
         .map_err(|error| error.to_string())?
         .get("version")
@@ -207,7 +206,10 @@ pub(crate) fn run_output(mut command: Command) -> Result<String, String> {
     }
 }
 
-pub(crate) fn run_output_with_timeout(mut command: Command, timeout: Duration) -> Result<String, String> {
+pub(crate) fn run_output_with_timeout(
+    mut command: Command,
+    timeout: Duration,
+) -> Result<String, String> {
     hidden(&mut command);
     let mut child = command
         .stdin(Stdio::null())
@@ -218,8 +220,14 @@ pub(crate) fn run_output_with_timeout(mut command: Command, timeout: Duration) -
     let started = Instant::now();
 
     loop {
-        if child.try_wait().map_err(|error| error.to_string())?.is_some() {
-            let output = child.wait_with_output().map_err(|error| error.to_string())?;
+        if child
+            .try_wait()
+            .map_err(|error| error.to_string())?
+            .is_some()
+        {
+            let output = child
+                .wait_with_output()
+                .map_err(|error| error.to_string())?;
             let text = format!(
                 "{}\n{}",
                 String::from_utf8_lossy(&output.stdout),
@@ -234,7 +242,9 @@ pub(crate) fn run_output_with_timeout(mut command: Command, timeout: Duration) -
 
         if started.elapsed() >= timeout {
             let _ = child.kill();
-            let output = child.wait_with_output().map_err(|error| error.to_string())?;
+            let output = child
+                .wait_with_output()
+                .map_err(|error| error.to_string())?;
             let text = format!(
                 "{}\n{}",
                 String::from_utf8_lossy(&output.stdout),
@@ -258,9 +268,19 @@ pub(crate) fn run_output_with_timeout(mut command: Command, timeout: Duration) -
 }
 
 fn bundled_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let resource_dir = app.path().resource_dir().map_err(|error| error.to_string())?;
-    let node = if cfg!(windows) { "node/node.exe" } else { "node/bin/node" };
-    [resource_dir.join("runtime"), resource_dir.join("resources/runtime")]
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|error| error.to_string())?;
+    let node = if cfg!(windows) {
+        "node/node.exe"
+    } else {
+        "node/bin/node"
+    };
+    [
+        resource_dir.join("runtime"),
+        resource_dir.join("resources/runtime"),
+    ]
         .into_iter()
         .find(|candidate| {
             candidate.join(node).is_file()
@@ -276,7 +296,11 @@ fn copy_directory(source: &Path, destination: &Path) -> Result<(), String> {
     for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
         let target = destination.join(entry.file_name());
-        if entry.file_type().map_err(|error| error.to_string())?.is_dir() {
+        if entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_dir()
+        {
             copy_directory(&entry.path(), &target)?;
         } else {
             fs::copy(entry.path(), target).map_err(|error| error.to_string())?;
@@ -333,7 +357,10 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
         .arg(npm_bin(&app))
         .args(install_options)
         .arg(runtime_dir(&app))
-        .arg(format!("@deepseek-ai/dsh@{}", update_channel(&app).as_str()))
+        .arg(format!(
+            "@deepseek-ai/dsh@{}",
+            update_channel(&app).as_str()
+        ))
         .current_dir(runtime_dir(&app));
     run_output_with_timeout(command, Duration::from_secs(300))
         .map_err(|error| format!("Harness 更新失败: {error}"))?;
