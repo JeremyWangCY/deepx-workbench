@@ -140,11 +140,11 @@ pub async fn update_status(app: AppHandle) -> UpdateStatus {
         .build()
         .ok();
     let (latest_deepx, latest_harness, latest_marketplace, latest_pnpm) = match client {
-        Some(client) => tokio::join!(
-            github_latest(&client),
-            npm_latest(&client, "@deepseek-ai/dsh", channel),
-            npm_latest_release(&client, "dshmarket"),
-            npm_latest_release(&client, "pnpm"),
+        Some(client) => (
+            github_latest(&client).await,
+            npm_latest(&client, "@deepseek-ai/dsh", channel).await,
+            npm_latest_release(&client, "dshmarket").await,
+            npm_latest_release(&client, "pnpm").await,
         ),
         None => (None, None, None, None),
     };
