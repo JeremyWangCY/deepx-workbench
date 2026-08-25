@@ -121,6 +121,14 @@ try {
     if ($reparsePoints) {
         throw "Bundled dshmarket profile contains non-portable links"
     }
+    $modulesManifest = Join-Path $marketplaceProfile "node_modules\.modules.yaml"
+    $virtualStore = Join-Path $marketplaceProfile "node_modules\.pnpm"
+    if (Test-Path $modulesManifest) {
+        Remove-Item -LiteralPath $modulesManifest -Force
+    }
+    if (Test-Path $virtualStore) {
+        Remove-Item -LiteralPath $virtualStore -Recurse -Force
+    }
     Copy-Item -LiteralPath $marketplaceProfile -Destination (Join-Path $buildDestination "marketplace-profile") -Recurse -Force
 } finally {
     $env:DSH_HOME = $previousDshHome

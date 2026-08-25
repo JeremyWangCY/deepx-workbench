@@ -311,6 +311,14 @@ pub(crate) fn seed_bundled_marketplace(app: &AppHandle) -> Result<bool, String> 
         return Ok(false);
     }
     copy_directory(&source, &destination)?;
+    let modules_manifest = destination.join("node_modules/.modules.yaml");
+    let virtual_store = destination.join("node_modules/.pnpm");
+    if modules_manifest.is_file() {
+        fs::remove_file(modules_manifest).map_err(|error| error.to_string())?;
+    }
+    if virtual_store.is_dir() {
+        fs::remove_dir_all(virtual_store).map_err(|error| error.to_string())?;
+    }
     Ok(marketplace_installed(app))
 }
 
