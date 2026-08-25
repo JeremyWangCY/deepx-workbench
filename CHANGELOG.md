@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-08-25
+
+### Fixed
+
+- Strip machine-specific pnpm metadata from the bundled marketplace profile so copied installations can update plugins on any Windows account.
+- Remove stale pnpm metadata again when seeding a marketplace profile during first-run initialization.
+
 ## [0.1.3] - 2026-08-25
 
 ### Fixed
