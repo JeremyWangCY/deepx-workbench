@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-08-25
+
+### Fixed
+
+- Bundle a private pnpm runtime and force Harness plugin commands to use it instead of a broken system Corepack installation.
+- Preinstall the plugin marketplace during first-run initialization, so a new Windows installation does not need to set up pnpm before using it.
+- Show current and latest versions for DeepX, Harness, the plugin marketplace, and pnpm in the update panel.
+
 ## [0.1.2] - 2026-08-25
 
 ### Fixed
