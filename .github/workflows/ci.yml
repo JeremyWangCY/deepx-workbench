@@ -31,6 +31,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare bundled runtime
+        run: pnpm prepare:runtime
+
       - name: Check formatting
         run: cargo fmt --all --check --manifest-path src-tauri/Cargo.toml
 
