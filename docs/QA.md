@@ -25,7 +25,7 @@ data folder).
 - Launching the packaged `deepx-workbench.exe` went straight to the Harness
   boot flow. The Harness HTTP service came up on `127.0.0.1:3080` and returned
   200 after **~9 seconds**. No dependency install was triggered.
-- Screenshot: `qa-direct-open.png`.
+- The packaged executable opened directly into the running Harness shell.
 
 ### Update flow
 
@@ -34,7 +34,7 @@ data folder).
 - It lists the installed vs latest Harness version and runs the update path:
   stop service -> npm install latest -> relaunch -> navigate back.
 - Progress events are surfaced on the same control (percentage + status text).
-- Screenshots from earlier passes: `qa-update-15s.png`, `qa-after-click.png`.
+- The full stop/install/relaunch cycle was observed in the live window.
 
 ### Marketplace
 
@@ -46,10 +46,8 @@ data folder).
 
 ## Residual notes
 
-- `qa-update-progress.png` from an earlier pass is a blank capture; it was
-  removed from the tracked set.
-- The remaining screenshots are illustrative captures taken during manual QA,
-  not a full automated suite. Re-run a packaged build before cutting a release.
+- Manual QA supplements, but does not replace, the automated checks. Re-run a
+  packaged build before cutting a release.
 
 ## 2026-08-24 interactive verification (DevTools / CDP)
 

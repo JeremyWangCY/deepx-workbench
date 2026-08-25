@@ -1,0 +1,58 @@
+name: Bug report
+description: Report incorrect behavior in DeepX Workbench.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove credentials, tokens, and private paths before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: DeepX Workbench version
+      description: The version is shown during startup or in the installer filename.
+    validations:
+      required: true
+  - type: input
+    id: harness-version
+    attributes:
+      label: Harness version
+      description: Run `dsh --version`, or copy the version shown by the DeepX overlay.
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Update channel
+      options:
+        - latest
+        - next
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Start DeepX Workbench.
+        2. Open...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: text

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Quality and build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: cargo fmt --all --check --manifest-path src-tauri/Cargo.toml
+
+      - name: Typecheck frontend
+        run: pnpm typecheck
+
+      - name: Lint Rust
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+      - name: Build application
+        run: pnpm tauri build --no-bundle
+
+      - name: Upload diagnostic bundle
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-build-logs
+          path: |
+            **/*.log
+            src-tauri/target/**/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
