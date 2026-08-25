@@ -133,3 +133,9 @@ Node CDP helper (no screenshots needed; DOM state read directly):
 - Close-to-tray handling is scoped to the main window.
 - Final packaged build passed typecheck, rustfmt, clippy, release build, and a
   shortcut launch with Harness HTTP 200.
+
+## Offline first run
+
+- Build the installer and install it on a Windows x64 VM with Node.js and WebView2 absent and network disabled.
+- First launch must copy the bundled runtime, start Harness, return HTTP 200 on 127.0.0.1:3080, and show the lower-left Update control.
+- After a Harness SPA navigation, confirm the control reappears and offers DeepX, Harness, and marketplace update actions.

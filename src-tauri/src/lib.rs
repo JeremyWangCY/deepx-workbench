@@ -11,8 +11,8 @@ mod runtime;
 use overlay::overlay_script;
 pub(crate) use runtime::{
     dsh_entry, emit_progress, harness_package_manifest, healthy, hidden, install_runtime,
-    marketplace_installed, migrate_private_plugins, node_bin, run_output, set_update_channel,
-    stop_harness_service, update_channel, valid_runtime, write_no_browser_patch, UpdateChannel,
+    marketplace_installed, migrate_private_plugins, node_bin, run_output_with_timeout, set_update_channel,
+    stop_harness_service, update_channel, update_runtime, valid_runtime, write_no_browser_patch, UpdateChannel,
 };
 
 fn activate_main(app: &AppHandle) {
@@ -42,6 +42,7 @@ pub fn run() {
             commands::update_status,
             commands::launch_harness,
             commands::show_harness,
+            commands::update_deepx,
             commands::update_harness,
             commands::marketplace_status,
             commands::install_marketplace,

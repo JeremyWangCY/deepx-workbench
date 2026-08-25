@@ -4,3 +4,5 @@ src-tauri/target/
 output/
 *.log
 .env
+
+src-tauri/resources/runtime/

@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/deepx-icon.png" width="144" alt="DeepX Workbench icon"></p>
+
 # DeepX Workbench
 
 [![CI](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/ci.yml)
@@ -20,16 +22,15 @@ Compatibility surface (official Harness only):
 
 Download the Windows x64 NSIS installer from
 [Releases](https://github.com/JeremyWangCY/deepx-workbench/releases/latest).
-The `0.1.0` asset is named `DeepX Workbench_0.1.0_x64-setup.exe`.
+The current asset is named `DeepX.Workbench_0.1.1_x64-setup.exe`.
 
-On first run DeepX installs its private Node runtime plus the
-official Harness package automatically. This is a **one-time** step and takes a
-few minutes (it pulls the large dependency tree). Once it finishes, Harness
-opens directly in the window.
+The Windows installer contains a tested private Node.js runtime and the official
+DeepSeek Harness runtime. On first run DeepX copies those local files into its
+app-data folder; it does **not** download Node.js or run npm. Once the copy
+finishes, Harness opens directly in the window.
 
-No dependency installation runs on normal launches after that. If an existing
-Harness runtime is already present in the app-data folder, startup goes
-straight to the service boot with no install step.
+No dependency installation runs on normal launches. Harness and plugin-market
+updates are explicit user actions and need an internet connection.
 
 ## Using Harness updates and the plugin marketplace
 

@@ -12,6 +12,7 @@
     "opener:default",
     "allow-runtime-status",
     "allow-update-status",
+    "allow-update-deepx",
     "allow-launch-harness",
     "allow-show-harness",
     "allow-update-harness",

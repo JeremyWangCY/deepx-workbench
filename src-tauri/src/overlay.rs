@@ -1,8 +1,10 @@
 pub(crate) fn overlay_script() -> String {
     String::from(
         r#"(() => {
-if (window.__deepxOverlay) return;
-window.__deepxOverlay = true;
+if (window.__deepxOverlay?.mount) {
+  window.__deepxOverlay.mount();
+  return;
+}
 const style = document.createElement('style');
 style.textContent = `
 .deepx-box{position:fixed;left:12px;bottom:58px;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
@@ -24,10 +26,7 @@ style.textContent = `
 .deepx-error{color:#c23d3d}
 `;
 document.head.appendChild(style);
-const box = document.createElement('div');
-box.className = 'deepx-box';
-box.innerHTML = '<button class="deepx-toggle" title="Harness 更新与插件市场">↻ 更新</button>';
-document.body.appendChild(box);
+let box = null;
 const internals = window.__TAURI_INTERNALS__;
 const invoke = internals?.invoke?.bind(internals);
 let panel = null;
@@ -49,14 +48,14 @@ function setProgress(value) {
 }
 function refresh() {
   return Promise.all([
-  invoke?.('update_status').then(status => {
-    const installed = status.installed_version || '未安装';
-    const latest = status.latest_version || '未知';
-    panel.querySelector('.deepx-version').textContent = status.update_available ? `${installed} → ${latest}` : `${installed} 最新`;
-  }).catch(() => panel.querySelector('.deepx-version').textContent = '不可用'),
-  invoke?.('marketplace_status').then(status => {
-    panel.querySelector('.deepx-market').textContent = status.installed ? '已安装' : '尚未安装';
-  }).catch(() => panel.querySelector('.deepx-market').textContent = '不可用'),
+    invoke?.('update_status').then(status => {
+      const installed = status.installed_version || '未安装';
+      const latest = status.latest_version || '未知';
+      panel.querySelector('.deepx-version').textContent = status.update_available ? `${installed} → ${latest}` : `${installed} 最新`;
+    }).catch(() => panel.querySelector('.deepx-version').textContent = '不可用'),
+    invoke?.('marketplace_status').then(status => {
+      panel.querySelector('.deepx-market').textContent = status.installed ? '已安装' : '尚未安装';
+    }).catch(() => panel.querySelector('.deepx-market').textContent = '不可用'),
   ]);
 }
 function setActiveChannel(channel) {
@@ -71,10 +70,16 @@ function drawPanel() {
 <div class="deepx-row"><span>Harness</span><span class="deepx-version">检查中...</span></div>
 <div class="deepx-row"><span>更新通道</span><span class="deepx-seg"><button class="deepx-channel" data-channel="latest">latest</button><button class="deepx-channel" data-channel="next">next</button></span></div>
 <div class="deepx-row"><span>插件市场</span><span class="deepx-market">检查中...</span></div>
+<button class="deepx-btn deepx-app-update">更新 DeepX</button>
 <button class="deepx-btn deepx-update">更新 Harness</button>
 <button class="deepx-btn deepx-market">安装 / 更新插件市场</button>
 <div class="deepx-track"><i></i></div>
 <div class="deepx-status"></div>`;
+  panel.querySelector('.deepx-app-update').onclick = async () => {
+    if (busy || !invoke) return;
+    try { setBusy(true, '正在下载并启动 DeepX 更新...'); await invoke('update_deepx'); setBusy(false, 'DeepX 更新安装器已启动'); }
+    catch (error) { setBusy(false, String(error), true); }
+  };
   panel.querySelector('.deepx-update').onclick = async () => {
     if (busy || !invoke) return;
     try { setBusy(true, '开始更新...'); await invoke('update_harness'); setBusy(false, 'Harness 已更新'); refresh(); }
@@ -104,13 +109,21 @@ function drawPanel() {
   invoke?.('get_update_channel').then(status => setActiveChannel(status.channel)).catch(() => {});
   refresh();
 }
-box.querySelector('.deepx-toggle').onclick = () => {
-  if (panel) { panel.remove(); panel = null; return; }
-  panel = document.createElement('div');
-  panel.className = 'deepx-panel';
-  box.prepend(panel);
-  drawPanel();
-};
+function mount() {
+  if (!document.body || document.querySelector('.deepx-box')) return;
+  panel = null;
+  box = document.createElement('div');
+  box.className = 'deepx-box';
+  box.innerHTML = '<button class="deepx-toggle" title="DeepX、Harness 与插件市场更新">↻ 更新</button>';
+  document.body.appendChild(box);
+  box.querySelector('.deepx-toggle').onclick = () => {
+    if (panel) { panel.remove(); panel = null; return; }
+    panel = document.createElement('div');
+    panel.className = 'deepx-panel';
+    box.prepend(panel);
+    drawPanel();
+  };
+}
 if (internals?.transformCallback && internals?.invoke) {
   internals.invoke('plugin:event|listen', {
     event: 'runtime-progress',
@@ -120,6 +133,9 @@ if (internals?.transformCallback && internals?.invoke) {
     }),
   }).catch(() => {});
 }
+window.__deepxOverlay = { mount };
+mount();
+new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
 })();
 "#,
     )
