@@ -22,7 +22,7 @@ Compatibility surface (official Harness only):
 
 Download the Windows x64 NSIS installer from
 [Releases](https://github.com/JeremyWangCY/deepx-workbench/releases/latest).
-The current asset is named `DeepX.Workbench_0.1.1_x64-setup.exe`.
+The current asset is named `DeepX.Workbench_0.1.2_x64-setup.exe`.
 
 The Windows installer contains a tested private Node.js runtime and the official
 DeepSeek Harness runtime. On first run DeepX copies those local files into its

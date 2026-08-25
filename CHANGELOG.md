@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-08-25
+
+### Fixed
+
+- Keep first run offline: copy the bundled Harness runtime instead of running an update.
+- Align all Harness peer packages to the installed Harness version and verify the web service before packaging.
+- Show the actual Harness startup failure in the local log instead of masking it as a timeout.
+
+### Changed
+
+- Reduce initialization to concise status text.
+
 ## [0.1.1] - 2026-08-25
 
 ### Changed

@@ -3,6 +3,7 @@ fn main() {
         "runtime_status",
         "update_status",
         "update_deepx",
+        "initialize_harness",
         "launch_harness",
         "show_harness",
         "update_harness",
