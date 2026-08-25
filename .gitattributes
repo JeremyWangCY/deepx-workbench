@@ -1,0 +1,18 @@
+* text=auto eol=lf
+
+*.rs text eol=lf diff=rust
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+
+pnpm-lock.yaml linguist-generated=true
+src-tauri/gen/schemas/* linguist-generated=true

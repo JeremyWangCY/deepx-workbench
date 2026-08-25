@@ -1,5 +1,9 @@
 # DeepX Workbench
 
+[![CI](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/ci.yml)
+[![Release](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/release.yml/badge.svg)](https://github.com/JeremyWangCY/deepx-workbench/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 DeepX Workbench is an independent, clean-room desktop shell for the official
 DeepSeek Harness runtime. It is **not a fork** of `deepseek-harness-desktop`.
 It has its own minimal Vite frontend and its own Rust/Tauri host; the only
@@ -14,8 +18,11 @@ Compatibility surface (official Harness only):
 
 ## Install
 
-Grab the Windows installer (NSIS `DeepX Workbench ...-setup.exe`) from the
-latest release. On first run DeepX installs its private Node runtime plus the
+Download the Windows x64 NSIS installer from
+[Releases](https://github.com/JeremyWangCY/deepx-workbench/releases/latest).
+The `0.1.0` asset is named `DeepX Workbench_0.1.0_x64-setup.exe`.
+
+On first run DeepX installs its private Node runtime plus the
 official Harness package automatically. This is a **one-time** step and takes a
 few minutes (it pulls the large dependency tree). Once it finishes, Harness
 opens directly in the window.
@@ -67,6 +74,14 @@ To build installers:
 pnpm tauri build
 ```
 
-## QA
+Contribution commands, commit conventions, and release steps are documented in
+[CONTRIBUTING.md](CONTRIBUTING.md). Security reports are handled through
+[SECURITY.md](SECURITY.md).
 
-Manual verification notes and screenshots live in `output/QA_NOTES.md`.
+## License
+
+[MIT](LICENSE)
+
+## Quality assurance
+
+Manual verification notes live in [`docs/QA.md`](docs/QA.md).
