@@ -8,7 +8,7 @@ compatibility surface is the official Harness runtime and CLI.
 Compatibility surface (official Harness only):
 
 - local Harness HTTP service at `127.0.0.1:3080`
-- `dsh web --port 3080`
+- `dsh --profile web --no-open --port 3080`
 - `dsh plugin --profile web add dshmarket`
 - the official npm package `@deepseek-ai/dsh`
 
@@ -30,9 +30,13 @@ A small control is injected into the Harness page in the lower-left area,
 above the settings gear. It is deliberately **not** inside the Harness
 settings page.
 
-- **刷新 / 更新 Harness** - checks the npm registry for the latest `@deepseek-ai/dsh`,
-  shows installed vs latest, and runs the update on demand (stop service,
-  install latest, relaunch, navigate back). Probe progress is shown inline.
+- **刷新状态** - the small header button rechecks installed/latest versions and
+  marketplace status.
+- **更新 Harness** - runs the selected-channel update on demand (stop service,
+  install Harness, relaunch, navigate back). Probe progress is shown inline.
+- **更新通道** - chooses the npm `latest` or `next` dist-tag. The choice is
+  persisted in DeepX application data and used for both update checks and
+  installs; `latest` remains the default.
 - **安装 / 更新插件市场** - one-click install/update of the `dshmarket`
   plugin using the official `dsh plugin` CLI, so users can then explore
   Harness extensions from the marketplace.
@@ -40,6 +44,9 @@ settings page.
 ## Design goals
 
 - minimal startup surface, direct to Harness
+- no default-browser handoff; the Harness surface stays inside DeepX
+- one app instance; shortcuts restore a minimized or tray-hidden window
+- the default `~/.dsh` web profile, so existing Harness plugins are shared
 - no repeated dependency installs
 - explicit, user-triggered Harness updates
 - explicit, user-triggered marketplace install

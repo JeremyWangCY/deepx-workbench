@@ -77,3 +77,61 @@ Node CDP helper (no screenshots needed; DOM state read directly):
 - Note: a plain `cargo build --release` embeds the dev URL, so the tray/webview
   pointed at `localhost:1420`. The correct build path is `pnpm tauri build
   --no-bundle` (sets prod config and embeds `dist/`).
+
+## 2026-08-25 follow-up verification
+
+- Verified both Start Menu and Desktop shortcuts point to:
+  `%LOCALAPPDATA%\DeepX Workbench\deepx-workbench.exe`, with working directory
+  `%LOCALAPPDATA%\DeepX Workbench`. Launching through the Start Menu shortcut
+  created a visible main window and booted Harness on `127.0.0.1:3080` (HTTP
+  200).
+- Reopened Settings over CDP and confirmed the real marketplace entry appears
+  as a “插件市场” settings tab. Opening it rendered `dsh-market v1.20.2`, its
+  category filters, plugin listings with Install buttons, pagination, and the
+  “升级市场” action.
+- Added the persisted latest/next update channel selector. CDP verification:
+  both IPC reads/writes succeed, the segmented control tracks the active
+  channel, update-channel.json persists across calls, and update_status resolves
+  both dist-tags (0.1.1-rc.2 at verification time). The test machine was
+  restored to latest.
+
+- Split status refresh from updating: the panel header now has a dedicated
+  compact refresh button, while the main action is labeled “更新 Harness”.
+  CDP verified a 24x24 refresh control, absence of the combined label, and a
+  successful refresh ending in “状态已刷新”.
+
+## 2026-08-25 shell ownership fix
+
+- Replaced the positional launcher form with the documented
+  \`dsh --profile web\` invocation.
+- Added a persistent profile patch that forces \`openBrowser: false\`, in
+  addition to \`--no-open\`; verified the generated Node command includes both
+  safeguards and writes \`deepx-no-open.yml\` under DSH_HOME.
+- Added single-instance activation, close-to-tray behavior, and a tray menu.
+  A second shortcut exited while the first instance remained active. After
+  closing the first window to the tray, another shortcut restored/focused it.
+
+### Shared DSH_HOME follow-up
+
+- Moved DeepX plugin/profile handling to the standard \`~/.dsh\` home.
+- Added a one-time migration that merges community dependencies and bundle
+  entries from the former private profile into \`~/.dsh/profiles/web\`, then
+  installs missing packages through the official CLI.
+- Verified migration produced \`dshmarket ^1.26.0\` in the shared manifest and
+  the market API reports it present/live.
+- Confirmed dshmarket v1.26 deliberately excludes its own package name from
+  the Installed tab; with no other community packages that tab therefore shows
+  the empty-state message even though the market component is installed.
+- Removed the former private \`profiles\` directory after successful
+  migration on the test machine.
+
+### Release audit
+
+- Tightened marketplace detection so a dependency must also have its installed
+  package manifest present.
+- Migration now reports whether it changed the active home, restarts an old
+  private-home service after migration, tolerates missing manifest sections,
+  and stores its marker outside the shared Harness profile.
+- Close-to-tray handling is scoped to the main window.
+- Final packaged build passed typecheck, rustfmt, clippy, release build, and a
+  shortcut launch with Harness HTTP 200.

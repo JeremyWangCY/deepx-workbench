@@ -16,6 +16,8 @@
     "allow-show-harness",
     "allow-update-harness",
     "allow-marketplace-status",
-    "allow-install-marketplace"
+    "allow-install-marketplace",
+    "allow-get-update-channel",
+    "allow-select-update-channel"
   ]
 }

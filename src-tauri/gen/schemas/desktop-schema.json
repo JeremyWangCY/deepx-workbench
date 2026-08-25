@@ -345,6 +345,12 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the get_update_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-update-channel",
+          "markdownDescription": "Enables the get_update_channel command without any pre-configured scope."
+        },
+        {
           "description": "Enables the install_marketplace command without any pre-configured scope.",
           "type": "string",
           "const": "allow-install-marketplace",
@@ -369,6 +375,12 @@
           "markdownDescription": "Enables the runtime_status command without any pre-configured scope."
         },
         {
+          "description": "Enables the select_update_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-select-update-channel",
+          "markdownDescription": "Enables the select_update_channel command without any pre-configured scope."
+        },
+        {
           "description": "Enables the show_harness command without any pre-configured scope.",
           "type": "string",
           "const": "allow-show-harness",
@@ -385,6 +397,12 @@
           "type": "string",
           "const": "allow-update-status",
           "markdownDescription": "Enables the update_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_update_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-update-channel",
+          "markdownDescription": "Denies the get_update_channel command without any pre-configured scope."
         },
         {
           "description": "Denies the install_marketplace command without any pre-configured scope.",
@@ -409,6 +427,12 @@
           "type": "string",
           "const": "deny-runtime-status",
           "markdownDescription": "Denies the runtime_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the select_update_channel command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-select-update-channel",
+          "markdownDescription": "Denies the select_update_channel command without any pre-configured scope."
         },
         {
           "description": "Denies the show_harness command without any pre-configured scope.",
