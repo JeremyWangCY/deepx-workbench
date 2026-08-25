@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -11,6 +11,22 @@ use tauri::{AppHandle, Emitter, Manager};
 pub struct Progress {
     pub percentage: u8,
     pub detail: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum UpdateChannel {
+    Latest,
+    Next,
+}
+
+impl UpdateChannel {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Latest => "latest",
+            Self::Next => "next",
+        }
+    }
 }
 
 fn app_data(app: &AppHandle) -> PathBuf {
@@ -74,8 +90,35 @@ pub(crate) fn harness_package_manifest(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join("node_modules/@deepseek-ai/dsh/package.json")
 }
 
-pub(crate) fn profile_dir(app: &AppHandle) -> PathBuf {
-    app_data(app).join("dsh/profiles/web")
+fn dsh_home(app: &AppHandle) -> Result<PathBuf, String> {
+    let home = app.path().home_dir().map_err(|error| error.to_string())?;
+    Ok(home.join(".dsh"))
+}
+
+fn legacy_dsh_home(app: &AppHandle) -> PathBuf {
+    app_data(app).join("dsh")
+}
+
+pub(crate) fn profile_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(dsh_home(app)?.join("profiles/web"))
+}
+
+fn update_channel_path(app: &AppHandle) -> PathBuf {
+    app_data(app).join("update-channel.json")
+}
+
+pub(crate) fn update_channel(app: &AppHandle) -> UpdateChannel {
+    fs::read_to_string(update_channel_path(app))
+        .ok()
+        .and_then(|text| serde_json::from_str::<UpdateChannel>(&text).ok())
+        .unwrap_or(UpdateChannel::Latest)
+}
+
+pub(crate) fn set_update_channel(app: &AppHandle, channel: UpdateChannel) -> Result<(), String> {
+    let path = update_channel_path(app);
+    fs::create_dir_all(path.parent().unwrap()).map_err(|error| error.to_string())?;
+    let payload = serde_json::to_vec(&channel).map_err(|error| error.to_string())?;
+    fs::write(path, payload).map_err(|error| error.to_string())
 }
 
 pub(crate) fn npm_bin(app: &AppHandle) -> PathBuf {
@@ -96,12 +139,20 @@ pub(crate) fn valid_runtime(app: &AppHandle) -> bool {
 }
 
 pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
-    let manifest = profile_dir(app).join("package.json");
-    fs::read_to_string(manifest)
+    let profile = match profile_dir(app) {
+        Ok(path) => path,
+        Err(_) => return false,
+    };
+    let manifest = profile.join("package.json");
+    let has_dependency = fs::read_to_string(manifest)
         .ok()
         .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
         .and_then(|value| value.get("dependencies")?.get("dshmarket").cloned())
-        .is_some()
+        .is_some();
+    has_dependency
+        && profile
+            .join("node_modules/dshmarket/package.json")
+            .is_file()
 }
 
 pub(crate) fn emit_progress(app: &AppHandle, percentage: u8, detail: impl Into<String>) {
@@ -261,7 +312,10 @@ pub(crate) async fn install_runtime(app: AppHandle) -> Result<(), String> {
             "--prefix",
         ])
         .arg(runtime_dir(&app))
-        .arg("@deepseek-ai/dsh@latest")
+        .arg(format!(
+            "@deepseek-ai/dsh@{}",
+            update_channel(&app).as_str()
+        ))
         .current_dir(runtime_dir(&app));
     run_output(command).map_err(|error| format!("Harness 安装失败: {error}"))?;
     emit_progress(&app, 90, "官方 DeepSeek Harness 已就绪");
@@ -297,4 +351,155 @@ pub(crate) async fn healthy() -> bool {
         .await
         .map(|response| response.status().is_success())
         .unwrap_or(false)
+}
+
+fn no_browser_patch_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(dsh_home(app)?.join("deepx-no-open.yml"))
+}
+
+pub(crate) fn write_no_browser_patch(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = no_browser_patch_path(app)?;
+    fs::create_dir_all(path.parent().unwrap()).map_err(|error| error.to_string())?;
+    fs::write(
+        &path,
+        r#"- id: web-runtime
+  config:
+    openBrowser: false
+    printUrl: true
+    surfaceContext: true
+    trustedHosts: []"#,
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(path)
+}
+
+const OFFICIAL_BUNDLES: [&str; 3] = [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-web-app",
+    "@deepseek-ai/dsh-headless",
+];
+
+pub(crate) fn migrate_private_plugins(app: &AppHandle) -> Result<bool, String> {
+    let legacy_profile = legacy_dsh_home(app).join("profiles/web");
+    let legacy_manifest_path = legacy_profile.join("package.json");
+    if !legacy_manifest_path.is_file() {
+        return Ok(false);
+    }
+
+    let shared_profile = profile_dir(app)?;
+    let marker = app_data(app).join(".deepx-profile-migrated.json");
+    if marker.is_file() {
+        return Ok(false);
+    }
+
+    fs::create_dir_all(&shared_profile).map_err(|error| error.to_string())?;
+    let legacy_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&legacy_manifest_path).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| format!("旧插件配置无效: {error}"))?;
+
+    let shared_manifest_path = shared_profile.join("package.json");
+    let mut shared_manifest: serde_json::Value = if shared_manifest_path.is_file() {
+        serde_json::from_str(
+            &fs::read_to_string(&shared_manifest_path).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Harness 插件配置无效: {error}"))?
+    } else {
+        serde_json::json!({
+            "name": "dsh-profile-web",
+            "private": true,
+            "dependencies": {},
+            "dsh": { "profile": { "bundles": [] } }
+        })
+    };
+    if !shared_manifest.is_object() {
+        return Err("Harness 插件配置必须是 JSON 对象".to_string());
+    }
+
+    let legacy_dependencies = legacy_manifest
+        .pointer("/dependencies")
+        .and_then(|value| value.as_object())
+        .cloned()
+        .unwrap_or_default();
+    if shared_manifest.get("dependencies").is_none() {
+        shared_manifest["dependencies"] = serde_json::json!({});
+    }
+    let shared_dependencies = shared_manifest
+        .as_object_mut()
+        .expect("shared manifest must be an object")
+        .entry("dependencies")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .ok_or("Harness 插件配置中的 dependencies 无效")?;
+
+    let missing = legacy_dependencies
+        .iter()
+        .filter(|(name, _)| !OFFICIAL_BUNDLES.contains(&name.as_str()))
+        .filter(|(name, _)| !shared_dependencies.contains_key(*name))
+        .map(|(name, spec)| (name.clone(), spec.clone()))
+        .collect::<Vec<_>>();
+    for (name, spec) in &missing {
+        shared_dependencies.insert(name.clone(), spec.clone());
+    }
+
+    if let Some(legacy_bundles) = legacy_manifest
+        .pointer("/dsh/profile/bundles")
+        .and_then(|value| value.as_array())
+    {
+        let shared_root = shared_manifest
+            .as_object_mut()
+            .expect("shared manifest must be an object");
+        let dsh = shared_root
+            .entry("dsh")
+            .or_insert_with(|| serde_json::json!({}));
+        if !dsh.is_object() {
+            return Err("Harness 插件配置中的 dsh 无效".to_string());
+        }
+        let profile = dsh
+            .as_object_mut()
+            .expect("checked dsh object")
+            .entry("profile")
+            .or_insert_with(|| serde_json::json!({}));
+        if !profile.is_object() {
+            return Err("Harness 插件配置中的 dsh.profile 无效".to_string());
+        }
+        let shared_bundles = profile
+            .as_object_mut()
+            .expect("checked profile object")
+            .entry("bundles")
+            .or_insert_with(|| serde_json::json!([]));
+        if !shared_bundles.is_array() {
+            return Err("Harness 插件配置中的 bundles 无效".to_string());
+        }
+        let shared_bundles = shared_bundles
+            .as_array_mut()
+            .expect("checked bundles array");
+        for bundle in legacy_bundles {
+            if !shared_bundles.contains(bundle) {
+                shared_bundles.push(bundle.clone());
+            }
+        }
+    }
+
+    fs::write(
+        &shared_manifest_path,
+        serde_json::to_vec_pretty(&shared_manifest).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    if !missing.is_empty() {
+        let mut command = Command::new(node_bin(app));
+        command.arg(dsh_entry(app));
+        command.args(["plugin", "--profile", "web", "add"]);
+        for (name, spec) in &missing {
+            command.arg(format!("{name}@{spec}"));
+        }
+        run_output(command).map_err(|error| format!("迁移私有插件失败: {error}"))?;
+    }
+
+    let marker_payload = serde_json::json!({ "migrated": true });
+    let marker_file = fs::File::create(&marker).map_err(|error| error.to_string())?;
+    serde_json::to_writer_pretty(marker_file, &marker_payload)
+        .map_err(|error| error.to_string())?;
+    Ok(true)
 }

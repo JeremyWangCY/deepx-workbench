@@ -7,6 +7,8 @@ fn main() {
         "update_harness",
         "marketplace_status",
         "install_marketplace",
+        "get_update_channel",
+        "select_update_channel",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(app_manifest))
         .expect("failed to run tauri build");
