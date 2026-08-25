@@ -12,7 +12,8 @@ use overlay::overlay_script;
 pub(crate) use runtime::{
     configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, pnpm_version, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
+    node_bin, pnpm_version, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    seed_bundled_marketplace,
     set_update_channel, stop_harness_service, update_channel, update_runtime, valid_runtime,
     write_no_browser_patch, UpdateChannel,
 };

@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-08-25
+
+### Fixed
+
+- Repair legacy pnpm metadata before Harness or marketplace commands so upgrades from v0.1.3 remain portable.
+
 ## [0.1.4] - 2026-08-25
 
 ### Fixed
