@@ -1,7 +1,7 @@
 use crate::{
     dsh_entry, emit_progress, harness_package_manifest, healthy, hidden, install_runtime,
-    marketplace_installed, migrate_private_plugins, node_bin, overlay_script, run_output,
-    set_update_channel, stop_harness_service, update_channel, valid_runtime,
+    marketplace_installed, migrate_private_plugins, node_bin, overlay_script, run_output_with_timeout,
+    set_update_channel, stop_harness_service, update_channel, update_runtime, valid_runtime,
     write_no_browser_patch, UpdateChannel,
 };
 use serde::{Deserialize, Serialize};
@@ -180,10 +180,91 @@ pub async fn show_harness(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        emit_progress(&app, 5, "正在检查 DeepX 最新版本...");
+        let client = reqwest::Client::builder()
+            .user_agent("DeepX Workbench")
+            .connect_timeout(Duration::from_secs(15))
+            .timeout(Duration::from_secs(900))
+            .build()
+            .map_err(|error| format!("更新网络初始化失败: {error}"))?;
+        let release = client
+            .get("https://api.github.com/repos/JeremyWangCY/deepx-workbench/releases/latest")
+            .send()
+            .await
+            .map_err(|error| format!("检查 DeepX 更新失败: {error}"))?
+            .error_for_status()
+            .map_err(|error| format!("检查 DeepX 更新失败: {error}"))?
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|error| format!("读取 DeepX 更新信息失败: {error}"))?;
+        let tag = release
+            .get("tag_name")
+            .and_then(|value| value.as_str())
+            .ok_or("最新 DeepX Release 缺少版本号")?;
+        if tag.trim_start_matches('v') == app.package_info().version.to_string() {
+            emit_progress(&app, 100, "DeepX 已是最新版本");
+            return Ok(());
+        }
+        let asset_url = release
+            .get("assets")
+            .and_then(|value| value.as_array())
+            .and_then(|assets| {
+                assets.iter().find_map(|asset| {
+                    let name = asset.get("name")?.as_str()?;
+                    let url = asset.get("browser_download_url")?.as_str()?;
+                    name.ends_with("_x64-setup.exe").then_some(url)
+                })
+            })
+            .filter(|url| {
+                url.starts_with(
+                    "https://github.com/JeremyWangCY/deepx-workbench/releases/download/",
+                )
+            })
+            .ok_or("最新 DeepX Release 中没有 Windows x64 安装包")?;
+        let cache = app.path().app_cache_dir().map_err(|error| error.to_string())?;
+        fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
+        let installer = cache.join("deepx-workbench-update.exe");
+        emit_progress(&app, 25, format!("正在下载 DeepX {tag}..."));
+        let bytes = client
+            .get(asset_url)
+            .send()
+            .await
+            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
+            .error_for_status()
+            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
+            .bytes()
+            .await
+            .map_err(|error| format!("读取 DeepX 更新失败: {error}"))?;
+        if !bytes.starts_with(b"MZ") {
+            return Err("下载的 DeepX 安装包无效".to_string());
+        }
+        fs::write(&installer, &bytes).map_err(|error| format!("保存 DeepX 更新失败: {error}"))?;
+        emit_progress(&app, 90, "正在启动 DeepX 更新安装器...");
+        Command::new(&installer)
+            .spawn()
+            .map_err(|error| format!("启动 DeepX 更新安装器失败: {error}"))?;
+        let app_for_exit = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(750));
+            app_for_exit.exit(0);
+        });
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        Err("DeepX 更新仅支持 Windows 安装包".to_string())
+    }
+}
+#[tauri::command]
 pub async fn update_harness(app: AppHandle) -> Result<(), String> {
     emit_progress(&app, 25, "正在停止旧的 Harness 服务...");
     stop_current_harness().await?;
-    install_runtime(app.clone()).await?;
+    update_runtime(app.clone()).await?;
     emit_progress(&app, 94, "正在启动 DeepSeek Harness...");
     launch_harness(app.clone()).await?;
     show_harness(app).await
@@ -213,7 +294,8 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
     command
         .arg(dsh_entry(&app))
         .args(["plugin", "--profile", "web", "add", "dshmarket"]);
-    run_output(command).map_err(|error| format!("插件市场安装失败: {error}"))?;
+    run_output_with_timeout(command, Duration::from_secs(300))
+        .map_err(|error| format!("插件市场安装失败: {error}"))?;
     if !marketplace_installed(&app) {
         return Err("插件市场命令已完成，但未在 web 配置中找到 dshmarket".to_string());
     }

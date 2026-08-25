@@ -27,6 +27,7 @@ jobs:
         with:
           components: rustfmt, clippy
 
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 

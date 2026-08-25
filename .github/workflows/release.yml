@@ -47,6 +47,7 @@ jobs:
             throw "Tag $tag does not match project version v$package"
           }
 
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 

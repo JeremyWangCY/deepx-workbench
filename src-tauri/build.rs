@@ -2,6 +2,7 @@ fn main() {
     let app_manifest = tauri_build::AppManifest::new().commands(&[
         "runtime_status",
         "update_status",
+        "update_deepx",
         "launch_harness",
         "show_harness",
         "update_harness",
