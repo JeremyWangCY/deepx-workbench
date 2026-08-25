@@ -119,12 +119,48 @@ pub(crate) fn npm_bin(app: &AppHandle) -> PathBuf {
     node_dir(app).join("node_modules/npm/bin/npm-cli.js")
 }
 
+pub(crate) fn pnpm_package_manifest(app: &AppHandle) -> PathBuf {
+    runtime_dir(app).join("node_modules/pnpm/package.json")
+}
+
+pub(crate) fn pnpm_cmd(app: &AppHandle) -> PathBuf {
+    runtime_dir(app).join("bin/pnpm.cmd")
+}
+
+pub(crate) fn pnpm_version(app: &AppHandle) -> Option<String> {
+    fs::read_to_string(pnpm_package_manifest(app))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value.get("version")?.as_str().map(str::to_owned))
+}
+
+pub(crate) fn configure_runtime_environment(
+    command: &mut Command,
+    app: &AppHandle,
+) -> Result<(), String> {
+    let mut paths = vec![runtime_dir(app).join("bin"), node_dir(app)];
+    if let Some(existing) = std::env::var_os("PATH") {
+        paths.extend(std::env::split_paths(&existing));
+    }
+    command.env(
+        "PATH",
+        std::env::join_paths(paths).map_err(|error| error.to_string())?,
+    );
+    command.env("COREPACK_HOME", runtime_dir(app).join("corepack"));
+    command.env("npm_config_node_linker", "hoisted");
+    Ok(())
+}
+
 pub(crate) fn runtime_marker(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join(RUNTIME_MARKER)
 }
 
 pub(crate) fn valid_runtime(app: &AppHandle) -> bool {
-    node_bin(app).is_file() && dsh_entry(app).is_file() && runtime_marker(app).is_file()
+    node_bin(app).is_file()
+        && dsh_entry(app).is_file()
+        && pnpm_cmd(app).is_file()
+        && pnpm_package_manifest(app).is_file()
+        && runtime_marker(app).is_file()
 }
 
 fn harness_version(app: &AppHandle) -> Result<String, String> {
@@ -151,21 +187,16 @@ fn aligned_peer_packages(version: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
-    let profile = match profile_dir(app) {
-        Ok(path) => path,
-        Err(_) => return false,
-    };
-    let manifest = profile.join("package.json");
-    let has_dependency = fs::read_to_string(manifest)
+pub(crate) fn marketplace_version(app: &AppHandle) -> Option<String> {
+    let profile = profile_dir(app).ok()?;
+    fs::read_to_string(profile.join("node_modules/dshmarket/package.json"))
         .ok()
         .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|value| value.get("dependencies")?.get("dshmarket").cloned())
-        .is_some();
-    has_dependency
-        && profile
-            .join("node_modules/dshmarket/package.json")
-            .is_file()
+        .and_then(|value| value.get("version")?.as_str().map(str::to_owned))
+}
+
+pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
+    marketplace_version(app).is_some()
 }
 
 pub(crate) fn emit_progress(app: &AppHandle, percentage: u8, detail: impl Into<String>) {
@@ -265,6 +296,22 @@ pub(crate) fn run_output_with_timeout(
 
         std::thread::sleep(Duration::from_millis(200));
     }
+}
+
+pub(crate) fn seed_bundled_marketplace(app: &AppHandle) -> Result<bool, String> {
+    if marketplace_installed(app) {
+        return Ok(false);
+    }
+    let destination = profile_dir(app)?;
+    if destination.join("package.json").is_file() {
+        return Ok(false);
+    }
+    let source = bundled_runtime_dir(app)?.join("marketplace-profile");
+    if !source.is_dir() {
+        return Ok(false);
+    }
+    copy_directory(&source, &destination)?;
+    Ok(marketplace_installed(app))
 }
 
 fn bundled_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -546,6 +593,7 @@ pub(crate) fn migrate_private_plugins(app: &AppHandle) -> Result<bool, String> {
 
     if !missing.is_empty() {
         let mut command = Command::new(node_bin(app));
+        configure_runtime_environment(&mut command, app)?;
         command.arg(dsh_entry(app));
         command.args(["plugin", "--profile", "web", "add"]);
         for (name, spec) in &missing {

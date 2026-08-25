@@ -9,7 +9,7 @@ const style = document.createElement('style');
 style.textContent = `
 .deepx-box{position:fixed;left:12px;bottom:58px;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
 .deepx-toggle{height:34px;padding:0 11px;border:1px solid #dfe3e8;border-radius:7px;background:#fff;box-shadow:0 2px 10px #0002;cursor:pointer}
-.deepx-panel{width:min(320px,calc(100vw - 24px));margin-bottom:8px;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px #0003}
+.deepx-panel{width:min(360px,calc(100vw - 24px));margin-bottom:8px;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px #0003}
 .deepx-head{align-items:center;justify-content:space-between;display:flex}
 .deepx-title{font-weight:650}
 .deepx-refresh{width:24px;height:24px;padding:0;border:1px solid #dfe3e8;border-radius:5px;background:#fff;color:#5f6368;cursor:pointer;font-size:12px;line-height:1}
@@ -46,17 +46,21 @@ function setProgress(value) {
   const indicator = panel?.querySelector('.deepx-track i');
   if (indicator) indicator.style.width = `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
 }
+function versionText(status) {
+  if (!status) return '不可用';
+  const current = status.current || '未安装';
+  const latest = status.latest || '未知';
+  return `当前 ${current} · 最新 ${latest}`;
+}
 function refresh() {
-  return Promise.all([
-    invoke?.('update_status').then(status => {
-      const installed = status.installed_version || '未安装';
-      const latest = status.latest_version || '未知';
-      panel.querySelector('.deepx-version').textContent = status.update_available ? `${installed} → ${latest}` : `${installed} 最新`;
-    }).catch(() => panel.querySelector('.deepx-version').textContent = '不可用'),
-    invoke?.('marketplace_status').then(status => {
-      panel.querySelector('.deepx-market').textContent = status.installed ? '已安装' : '尚未安装';
-    }).catch(() => panel.querySelector('.deepx-market').textContent = '不可用'),
-  ]);
+  return invoke?.('update_status').then(status => {
+    panel.querySelector('.deepx-app-version').textContent = versionText(status.deepx);
+    panel.querySelector('.deepx-version').textContent = versionText(status.harness);
+    panel.querySelector('.deepx-market').textContent = versionText(status.marketplace);
+    panel.querySelector('.deepx-pnpm').textContent = versionText(status.pnpm);
+  }).catch(() => {
+    panel.querySelectorAll('.deepx-version, .deepx-app-version, .deepx-market, .deepx-pnpm').forEach(output => output.textContent = '不可用');
+  });
 }
 function setActiveChannel(channel) {
   panel?.querySelectorAll('.deepx-channel').forEach(button => {
@@ -67,9 +71,11 @@ function drawPanel() {
   if (!panel) return;
   panel.innerHTML = `
 <div class="deepx-head"><span class="deepx-title">DeepX</span><button class="deepx-refresh" title="刷新状态">↻</button></div>
+<div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">检查中...</span></div>
 <div class="deepx-row"><span>Harness</span><span class="deepx-version">检查中...</span></div>
-<div class="deepx-row"><span>更新通道</span><span class="deepx-seg"><button class="deepx-channel" data-channel="latest">latest</button><button class="deepx-channel" data-channel="next">next</button></span></div>
 <div class="deepx-row"><span>插件市场</span><span class="deepx-market">检查中...</span></div>
+<div class="deepx-row"><span>pnpm 环境</span><span class="deepx-pnpm">检查中...</span></div>
+<div class="deepx-row"><span>更新通道</span><span class="deepx-seg"><button class="deepx-channel" data-channel="latest">latest</button><button class="deepx-channel" data-channel="next">next</button></span></div>
 <button class="deepx-btn deepx-app-update">更新 DeepX</button>
 <button class="deepx-btn deepx-update">更新 Harness</button>
 <button class="deepx-btn deepx-market">安装 / 更新插件市场</button>

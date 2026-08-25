@@ -22,14 +22,15 @@ Compatibility surface (official Harness only):
 
 Download the Windows x64 NSIS installer from
 [Releases](https://github.com/JeremyWangCY/deepx-workbench/releases/latest).
-The current asset is named `DeepX.Workbench_0.1.2_x64-setup.exe`.
+The current asset is named `DeepX.Workbench_0.1.3_x64-setup.exe`.
 
 The Windows installer contains a tested private Node.js runtime and the official
-DeepSeek Harness runtime. On first run DeepX copies those local files into its
+DeepSeek Harness runtime. On first run DeepX copies the local Harness, private pnpm runtime, and preinstalled marketplace into its
 app-data folder; it does **not** download Node.js or run npm. Once the copy
 finishes, Harness opens directly in the window.
 
-No dependency installation runs on normal launches. Harness and plugin-market
+No dependency installation runs on normal launches. The private pnpm environment and
+plugin marketplace are ready after first-run setup; later Harness and marketplace
 updates are explicit user actions and need an internet connection.
 
 ## Using Harness updates and the plugin marketplace
@@ -38,16 +39,15 @@ A small control is injected into the Harness page in the lower-left area,
 above the settings gear. It is deliberately **not** inside the Harness
 settings page.
 
-- **刷新状态** - the small header button rechecks installed/latest versions and
-  marketplace status.
+- **刷新状态** - the small header button rechecks current/latest versions for
+  DeepX, Harness, the plugin marketplace, and the bundled pnpm environment.
 - **更新 Harness** - runs the selected-channel update on demand (stop service,
   install Harness, relaunch, navigate back). Probe progress is shown inline.
 - **更新通道** - chooses the npm `latest` or `next` dist-tag. The choice is
   persisted in DeepX application data and used for both update checks and
   installs; `latest` remains the default.
-- **安装 / 更新插件市场** - one-click install/update of the `dshmarket`
-  plugin using the official `dsh plugin` CLI, so users can then explore
-  Harness extensions from the marketplace.
+- **安装 / 更新插件市场** - updates the preinstalled `dshmarket` plugin using
+  the official `dsh plugin` CLI and DeepX’s bundled pnpm runtime.
 
 ## Design goals
 
@@ -57,7 +57,7 @@ settings page.
 - the default `~/.dsh` web profile, so existing Harness plugins are shared
 - no repeated dependency installs
 - explicit, user-triggered Harness updates
-- explicit, user-triggered marketplace install
+- bundled pnpm and a ready-to-use marketplace on first run
 - preserve the Harness profile and user-installed plugins (never touched)
 
 ## Development

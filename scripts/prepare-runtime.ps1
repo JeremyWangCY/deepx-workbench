@@ -7,11 +7,14 @@ $destination = [System.IO.Path]::GetFullPath($Destination)
 $marker = Join-Path $destination ".deepx-runtime-ready"
 $existingNode = Join-Path $destination "node\node.exe"
 $existingDsh = Join-Path $destination "node_modules\@deepseek-ai\dsh\lib\bin.js"
-if ((Test-Path $marker) -and (Test-Path $existingNode) -and (Test-Path $existingDsh)) {
+$existingPnpm = Join-Path $destination "bin\pnpm.cmd"
+$existingMarketplace = Join-Path $destination "marketplace-profile\package.json"
+if ((Test-Path $marker) -and (Test-Path $existingNode) -and (Test-Path $existingDsh) -and (Test-Path $existingPnpm) -and (Test-Path $existingMarketplace)) {
     return
 }
 
 $nodeVersion = "v22.23.2"
+$pnpmVersion = "11.22.0"
 
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("deepx-runtime-" + [guid]::NewGuid())
 $buildDestination = Join-Path $temporary "runtime"
@@ -39,7 +42,10 @@ $peerNames = @(
 )
 
 New-Item -ItemType Directory -Force -Path $temporary, $buildDestination | Out-Null
-Invoke-WebRequest "https://nodejs.org/dist/$nodeVersion/node-$nodeVersion-win-x64.zip" -OutFile $archive -TimeoutSec 120
+& curl.exe --fail --location --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 600 --output $archive "https://nodejs.org/dist/$nodeVersion/node-$nodeVersion-win-x64.zip"
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to download the Node.js runtime archive"
+}
 tar.exe -xf $archive -C $temporary
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to extract the Node.js runtime archive"
@@ -69,19 +75,65 @@ if ($LASTEXITCODE -ne 0) {
     throw "Failed to align bundled DeepSeek Harness dependencies"
 }
 
+& $node $npm $npmOptions "pnpm@$pnpmVersion"
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to bundle pnpm"
+}
+$pnpmCjs = Join-Path $buildDestination "node_modules\pnpm\bin\pnpm.cjs"
+if (-not (Test-Path $pnpmCjs)) {
+    throw "Bundled pnpm entry point is missing"
+}
+$pnpmBin = Join-Path $buildDestination "bin"
+New-Item -ItemType Directory -Force -Path $pnpmBin | Out-Null
+$pnpmCommand = @'
+@echo off
+"%~dp0..\node\node.exe" "%~dp0..\node_modules\pnpm\bin\pnpm.cjs" %*
+'@
+Set-Content -LiteralPath (Join-Path $pnpmBin "pnpm.cmd") -Value $pnpmCommand -NoNewline -Encoding ascii
+$pnpmPowerShell = @'
+& (Join-Path $PSScriptRoot "..\node\node.exe") (Join-Path $PSScriptRoot "..\node_modules\pnpm\bin\pnpm.cjs") @args
+exit $LASTEXITCODE
+'@
+Set-Content -LiteralPath (Join-Path $pnpmBin "pnpm.ps1") -Value $pnpmPowerShell -NoNewline -Encoding utf8
+
 & $node $dsh --help | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Bundled DeepSeek Harness CLI smoke test failed"
 }
 
-$smokeHome = Join-Path $temporary "dsh-home"
+$marketplaceHome = Join-Path $temporary "marketplace-home"
+$marketplaceProfile = Join-Path $marketplaceHome "profiles\web"
+$previousDshHome = $env:DSH_HOME
+$previousPath = $env:PATH
+$previousNodeLinker = $env:npm_config_node_linker
+try {
+    $env:DSH_HOME = $marketplaceHome
+    $env:PATH = $pnpmBin
+    $env:npm_config_node_linker = "hoisted"
+    & $node $dsh plugin --profile web add dshmarket@latest
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bundled dshmarket installation failed"
+    }
+    if (-not (Test-Path (Join-Path $marketplaceProfile "package.json"))) {
+        throw "Bundled dshmarket profile is missing"
+    }
+    $reparsePoints = Get-ChildItem -LiteralPath $marketplaceProfile -Recurse -Force -ErrorAction SilentlyContinue | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }
+    if ($reparsePoints) {
+        throw "Bundled dshmarket profile contains non-portable links"
+    }
+    Copy-Item -LiteralPath $marketplaceProfile -Destination (Join-Path $buildDestination "marketplace-profile") -Recurse -Force
+} finally {
+    $env:DSH_HOME = $previousDshHome
+    $env:PATH = $previousPath
+    $env:npm_config_node_linker = $previousNodeLinker
+}
+
 $smokePort = Get-Random -Minimum 31000 -Maximum 32000
 $smokeOut = Join-Path $temporary "harness.stdout.log"
 $smokeErr = Join-Path $temporary "harness.stderr.log"
-$previousDshHome = $env:DSH_HOME
 $process = $null
 try {
-    $env:DSH_HOME = $smokeHome
+    $env:DSH_HOME = $marketplaceHome
     $process = Start-Process -FilePath $node -ArgumentList @($dsh, "--profile", "web", "--no-open", "--port", "$smokePort") -WindowStyle Hidden -RedirectStandardOutput $smokeOut -RedirectStandardError $smokeErr -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds(60)
     $ready = $false
