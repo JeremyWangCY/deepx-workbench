@@ -281,14 +281,14 @@ fn bundled_runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
         resource_dir.join("runtime"),
         resource_dir.join("resources/runtime"),
     ]
-        .into_iter()
-        .find(|candidate| {
-            candidate.join(node).is_file()
-                && candidate
-                    .join("node_modules/@deepseek-ai/dsh/lib/bin.js")
-                    .is_file()
-        })
-        .ok_or_else(|| "安装包内缺少 DeepSeek Harness 运行时，请重新下载安装包".to_string())
+    .into_iter()
+    .find(|candidate| {
+        candidate.join(node).is_file()
+            && candidate
+                .join("node_modules/@deepseek-ai/dsh/lib/bin.js")
+                .is_file()
+    })
+    .ok_or_else(|| "安装包内缺少 DeepSeek Harness 运行时，请重新下载安装包".to_string())
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> Result<(), String> {
