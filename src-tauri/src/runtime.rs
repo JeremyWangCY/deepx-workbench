@@ -21,6 +21,8 @@ pub(crate) enum UpdateChannel {
 }
 
 
+const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
+
 const REQUIRED_DSH_PEERS: [&str; 19] = [
     "@deepseek-ai/cordis-plugin-group",
     "@deepseek-ai/dsh-anonymous-user-id",
@@ -118,8 +120,36 @@ pub(crate) fn set_update_channel(app: &AppHandle, channel: UpdateChannel) -> Res
 pub(crate) fn npm_bin(app: &AppHandle) -> PathBuf {
     node_dir(app).join("node_modules/npm/bin/npm-cli.js")
 }
+
+pub(crate) fn runtime_marker(app: &AppHandle) -> PathBuf {
+    runtime_dir(app).join(RUNTIME_MARKER)
+}
+
 pub(crate) fn valid_runtime(app: &AppHandle) -> bool {
-    node_bin(app).is_file() && dsh_entry(app).is_file()
+    node_bin(app).is_file() && dsh_entry(app).is_file() && runtime_marker(app).is_file()
+}
+
+fn harness_version(app: &AppHandle) -> Result<String, String> {
+    let manifest = fs::read_to_string(harness_package_manifest(app)).map_err(|error| error.to_string())?;
+    serde_json::from_str::<serde_json::Value>(&manifest)
+        .map_err(|error| error.to_string())?
+        .get("version")
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| "Harness 版本信息无效".to_string())
+}
+
+fn aligned_peer_packages(version: &str) -> Vec<String> {
+    REQUIRED_DSH_PEERS
+        .iter()
+        .map(|package| {
+            if *package == "@deepseek-ai/cordis-plugin-group" {
+                (*package).to_string()
+            } else {
+                format!("{package}@{version}")
+            }
+        })
+        .collect()
 }
 
 pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
@@ -262,7 +292,7 @@ pub(crate) async fn install_runtime(app: AppHandle) -> Result<(), String> {
 
     let source = bundled_runtime_dir(&app)?;
     let destination = runtime_dir(&app);
-    emit_progress(&app, 12, "正在准备安装包内置的 DeepSeek Harness...");
+    emit_progress(&app, 12, "正在安装...");
     tauri::async_runtime::spawn_blocking(move || {
         if destination.exists() {
             fs::remove_dir_all(&destination).map_err(|error| error.to_string())?;
@@ -274,7 +304,7 @@ pub(crate) async fn install_runtime(app: AppHandle) -> Result<(), String> {
     if !valid_runtime(&app) {
         return Err("内置 DeepSeek Harness 运行时不完整，请重新下载安装包".to_string());
     }
-    emit_progress(&app, 90, "官方 DeepSeek Harness 已就绪");
+    emit_progress(&app, 90, "安装完成");
     Ok(())
 }
 
@@ -283,34 +313,43 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
         install_runtime(app.clone()).await?;
     }
 
-    emit_progress(&app, 52, "正在更新官方 DeepSeek Harness（最多 5 分钟）...");
+    emit_progress(&app, 52, "正在更新 Harness...");
+    let install_options = [
+        "install",
+        "--no-audit",
+        "--no-fund",
+        "--no-package-lock",
+        "--legacy-peer-deps",
+        "--fetch-timeout",
+        "30000",
+        "--fetch-retries",
+        "1",
+        "--maxsockets",
+        "8",
+        "--prefix",
+    ];
     let mut command = Command::new(node_bin(&app));
     command
         .arg(npm_bin(&app))
-        .args([
-            "install",
-            "--no-audit",
-            "--no-fund",
-            "--no-package-lock",
-            "--legacy-peer-deps",
-            "--fetch-timeout",
-            "30000",
-            "--fetch-retries",
-            "1",
-            "--maxsockets",
-            "8",
-            "--prefix",
-        ])
+        .args(install_options)
         .arg(runtime_dir(&app))
-        .arg(format!(
-            "@deepseek-ai/dsh@{}",
-            update_channel(&app).as_str()
-        ))
-        .args(REQUIRED_DSH_PEERS)
+        .arg(format!("@deepseek-ai/dsh@{}", update_channel(&app).as_str()))
         .current_dir(runtime_dir(&app));
     run_output_with_timeout(command, Duration::from_secs(300))
         .map_err(|error| format!("Harness 更新失败: {error}"))?;
-    emit_progress(&app, 90, "官方 DeepSeek Harness 已更新");
+
+    let version = harness_version(&app)?;
+    let mut peer_command = Command::new(node_bin(&app));
+    peer_command
+        .arg(npm_bin(&app))
+        .args(install_options)
+        .arg(runtime_dir(&app))
+        .args(aligned_peer_packages(&version))
+        .current_dir(runtime_dir(&app));
+    run_output_with_timeout(peer_command, Duration::from_secs(300))
+        .map_err(|error| format!("Harness 依赖更新失败: {error}"))?;
+    fs::write(runtime_marker(&app), version).map_err(|error| error.to_string())?;
+    emit_progress(&app, 90, "Harness 已更新");
     Ok(())
 }
 pub(crate) fn stop_harness_service() {

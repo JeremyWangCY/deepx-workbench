@@ -1,7 +1,7 @@
 use crate::{
     dsh_entry, emit_progress, harness_package_manifest, healthy, hidden, install_runtime,
     marketplace_installed, migrate_private_plugins, node_bin, overlay_script, run_output_with_timeout,
-    set_update_channel, stop_harness_service, update_channel, update_runtime, valid_runtime,
+    runtime_dir, set_update_channel, stop_harness_service, update_channel, update_runtime, valid_runtime,
     write_no_browser_patch, UpdateChannel,
 };
 use serde::{Deserialize, Serialize};
@@ -104,14 +104,27 @@ pub fn select_update_channel(app: AppHandle, selection: ChannelSelection) -> Res
     set_update_channel(&app, selection.channel)
 }
 
-async fn wait_for_harness() -> bool {
-    for _ in 0..60 {
+async fn wait_for_harness(
+    child: &mut std::process::Child,
+    log_path: &std::path::Path,
+) -> Result<(), String> {
+    for _ in 0..180 {
         if healthy().await {
-            return true;
+            return Ok(());
+        }
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            let log = fs::read_to_string(log_path).unwrap_or_default();
+            let detail = log.chars().rev().take(1_500).collect::<String>().chars().rev().collect::<String>();
+            return Err(if detail.trim().is_empty() {
+                format!("Harness 启动失败（退出码 {:?}）", status.code())
+            } else {
+                format!("Harness 启动失败：{}", detail.trim())
+            });
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
-    false
+    let _ = child.kill();
+    Err("Harness 启动超时".to_string())
 }
 
 async fn stop_current_harness() -> Result<(), String> {
@@ -149,19 +162,17 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
         "--port",
         "3080",
     ]);
+    let log_path = runtime_dir(&app).join("harness-startup.log");
+    let log = fs::File::create(&log_path).map_err(|error| error.to_string())?;
     hidden(&mut command);
-    command
+    let mut child = command
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stdout(std::process::Stdio::from(log.try_clone().map_err(|error| error.to_string())?))
+        .stderr(std::process::Stdio::from(log))
         .spawn()
         .map_err(|error| error.to_string())?;
 
-    if wait_for_harness().await {
-        Ok(())
-    } else {
-        Err("Harness 服务启动超时".to_string())
-    }
+    wait_for_harness(&mut child, &log_path).await
 }
 
 #[tauri::command]
@@ -261,11 +272,19 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
     }
 }
 #[tauri::command]
+pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
+    install_runtime(app.clone()).await?;
+    emit_progress(&app, 94, "正在启动...");
+    launch_harness(app.clone()).await?;
+    show_harness(app).await
+}
+
+#[tauri::command]
 pub async fn update_harness(app: AppHandle) -> Result<(), String> {
-    emit_progress(&app, 25, "正在停止旧的 Harness 服务...");
+    emit_progress(&app, 25, "正在更新...");
     stop_current_harness().await?;
     update_runtime(app.clone()).await?;
-    emit_progress(&app, 94, "正在启动 DeepSeek Harness...");
+    emit_progress(&app, 94, "正在启动...");
     launch_harness(app.clone()).await?;
     show_harness(app).await
 }

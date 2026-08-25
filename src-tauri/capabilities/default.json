@@ -13,6 +13,7 @@
     "allow-runtime-status",
     "allow-update-status",
     "allow-update-deepx",
+    "allow-initialize-harness",
     "allow-launch-harness",
     "allow-show-harness",
     "allow-update-harness",
