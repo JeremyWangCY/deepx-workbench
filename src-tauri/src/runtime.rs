@@ -199,6 +199,19 @@ pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
     marketplace_version(app).is_some()
 }
 
+pub(crate) fn repair_marketplace_metadata(app: &AppHandle) -> Result<(), String> {
+    let profile = profile_dir(app)?;
+    let modules_manifest = profile.join("node_modules/.modules.yaml");
+    let virtual_store = profile.join("node_modules/.pnpm");
+    if modules_manifest.is_file() {
+        fs::remove_file(modules_manifest).map_err(|error| error.to_string())?;
+    }
+    if virtual_store.is_dir() {
+        fs::remove_dir_all(virtual_store).map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 pub(crate) fn emit_progress(app: &AppHandle, percentage: u8, detail: impl Into<String>) {
     let _ = app.emit(
         "runtime-progress",
