@@ -35,20 +35,28 @@ const internals = window.__TAURI_INTERNALS__;
 const invoke = internals?.invoke?.bind(internals);
 let panel = null;
 let busy = false;
+let progressValue = 0;
+let statusMessage = '';
+let statusError = false;
 function setBusy(next, message = '') {
   busy = next;
   panel?.querySelectorAll('.deepx-btn').forEach(button => button.disabled = busy);
+  const refreshButton = panel?.querySelector('.deepx-refresh');
+  if (refreshButton) refreshButton.disabled = busy;
   setStatus(message);
 }
 function setStatus(message, isError = false) {
+  statusMessage = message;
+  statusError = isError;
   const output = panel?.querySelector('.deepx-status');
   if (!output) return;
-  output.textContent = message;
-  output.classList.toggle('deepx-error', isError);
+  output.textContent = statusMessage;
+  output.classList.toggle('deepx-error', statusError);
 }
 function setProgress(value) {
+  progressValue = Math.max(0, Math.min(100, Number(value) || 0));
   const indicator = panel?.querySelector('.deepx-track i');
-  if (indicator) indicator.style.width = `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
+  if (indicator) indicator.style.width = `${progressValue}%`;
 }
 function versionText(status) {
   if (!status) return '不可用';
@@ -77,6 +85,9 @@ function drawPanel() {
 <button class="deepx-btn deepx-market-update">安装 / 更新插件市场</button>
 <div class="deepx-track"><i></i></div>
 <div class="deepx-status"></div>`;
+  panel.querySelectorAll('.deepx-btn').forEach(button => button.disabled = busy);
+  setProgress(progressValue);
+  setStatus(statusMessage, statusError);
   panel.querySelector('.deepx-app-update').onclick = async () => {
     if (busy || !invoke) return;
     try { setBusy(true, '正在下载并启动 DeepX 更新...'); await invoke('update_deepx'); setBusy(false, 'DeepX 更新安装器已启动'); }
@@ -96,7 +107,6 @@ function drawPanel() {
   refreshButton.onclick = () => {
     if (busy || refreshButton.disabled) return;
     refreshButton.disabled = true;
-    setProgress(0);
     setStatus('正在刷新状态...');
     refresh().then(() => setStatus('状态已刷新')).finally(() => refreshButton.disabled = false);
   };
