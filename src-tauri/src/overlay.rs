@@ -7,8 +7,15 @@ if (window.__deepxOverlay?.mount) {
 }
 const style = document.createElement('style');
 style.textContent = `
-.deepx-box{position:fixed;left:12px;bottom:58px;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
-.deepx-toggle{height:34px;padding:0 11px;border:1px solid #dfe3e8;border-radius:7px;background:#fff;box-shadow:0 2px 10px #0002;cursor:pointer}
+.deepx-box{position:fixed;left:0;bottom:58px;width:56px;padding:0 8px;box-sizing:border-box;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
+.deepx-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;padding:0;border:0;border-radius:8px;background:transparent;color:#5f6368;box-shadow:none;cursor:pointer;font:inherit;text-align:left}
+.deepx-toggle:hover{background:#eef0f2;color:#202124}
+.deepx-toggle:disabled{opacity:.55;cursor:not-allowed}
+.deepx-toggle-icon{font-size:17px;line-height:1}
+.deepx-toggle-label{white-space:nowrap}
+.deepx-box.compact .deepx-toggle-label{display:none}
+.deepx-box.expanded{width:100%;max-width:360px}
+.deepx-box.expanded .deepx-toggle{justify-content:flex-start;padding:0 12px}
 .deepx-panel{width:min(360px,calc(100vw - 24px));margin-bottom:8px;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px #0003}
 .deepx-head{align-items:center;justify-content:space-between;display:flex}
 .deepx-title{font-weight:650}
@@ -95,13 +102,31 @@ function drawPanel() {
   };
   refresh();
 }
+function syncSidebar() {
+  if (!box) return;
+  const candidates = [...document.body.querySelectorAll('*')].filter(element => {
+    if (element.closest('.deepx-box')) return false;
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return rect.left <= 4 && rect.top <= 4 && rect.height >= innerHeight * 0.7 &&
+      rect.width >= 48 && rect.width <= Math.min(innerWidth * 0.8, 420) &&
+      ['fixed', 'sticky'].includes(style.position);
+  });
+  const width = Math.round(candidates.reduce((largest, element) =>
+    Math.max(largest, element.getBoundingClientRect().width), 56));
+  box.classList.toggle('expanded', width > 96);
+  box.classList.toggle('compact', width <= 96);
+  box.style.width = Math.min(width, 360) + 'px';
+}
+
 function mount() {
   if (!document.body || document.querySelector('.deepx-box')) return;
   panel = null;
   box = document.createElement('div');
   box.className = 'deepx-box';
-  box.innerHTML = '<button class="deepx-toggle" title="DeepX、Harness 与插件市场更新">↻ 更新</button>';
+  box.innerHTML = '<button class="deepx-toggle" title="DeepX、Harness 与插件市场更新"><span class="deepx-toggle-icon">↻</span><span class="deepx-toggle-label">更新</span></button>';
   document.body.appendChild(box);
+  syncSidebar();
   box.querySelector('.deepx-toggle').onclick = () => {
     if (panel) { panel.remove(); panel = null; return; }
     panel = document.createElement('div');
@@ -121,7 +146,8 @@ if (internals?.transformCallback && internals?.invoke) {
 }
 window.__deepxOverlay = { mount };
 mount();
-new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
+new MutationObserver(() => { mount(); syncSidebar(); }).observe(document.documentElement, { childList: true, subtree: true });
+window.addEventListener('resize', syncSidebar);
 })();
 "#,
     )
