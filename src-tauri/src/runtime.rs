@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -11,13 +11,6 @@ use tauri::{AppHandle, Emitter, Manager};
 pub struct Progress {
     pub percentage: u8,
     pub detail: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum UpdateChannel {
-    Latest,
-    Next,
 }
 
 const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
@@ -43,15 +36,6 @@ const REQUIRED_DSH_PEERS: [&str; 19] = [
     "@deepseek-ai/dsh-timeout",
     "@deepseek-ai/dsh-workflow",
 ];
-
-impl UpdateChannel {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Latest => "latest",
-            Self::Next => "next",
-        }
-    }
-}
 
 fn app_data(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().unwrap()
@@ -97,24 +81,6 @@ pub(crate) fn profile_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dsh_home(app)?.join("profiles/web"))
 }
 
-fn update_channel_path(app: &AppHandle) -> PathBuf {
-    app_data(app).join("update-channel.json")
-}
-
-pub(crate) fn update_channel(app: &AppHandle) -> UpdateChannel {
-    fs::read_to_string(update_channel_path(app))
-        .ok()
-        .and_then(|text| serde_json::from_str::<UpdateChannel>(&text).ok())
-        .unwrap_or(UpdateChannel::Latest)
-}
-
-pub(crate) fn set_update_channel(app: &AppHandle, channel: UpdateChannel) -> Result<(), String> {
-    let path = update_channel_path(app);
-    fs::create_dir_all(path.parent().unwrap()).map_err(|error| error.to_string())?;
-    let payload = serde_json::to_vec(&channel).map_err(|error| error.to_string())?;
-    fs::write(path, payload).map_err(|error| error.to_string())
-}
-
 pub(crate) fn npm_bin(app: &AppHandle) -> PathBuf {
     node_dir(app).join("node_modules/npm/bin/npm-cli.js")
 }
@@ -125,13 +91,6 @@ pub(crate) fn pnpm_package_manifest(app: &AppHandle) -> PathBuf {
 
 pub(crate) fn pnpm_cmd(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join("bin/pnpm.cmd")
-}
-
-pub(crate) fn pnpm_version(app: &AppHandle) -> Option<String> {
-    fs::read_to_string(pnpm_package_manifest(app))
-        .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|value| value.get("version")?.as_str().map(str::to_owned))
 }
 
 pub(crate) fn configure_runtime_environment(
@@ -440,10 +399,7 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
         .arg(npm_bin(&app))
         .args(install_options)
         .arg(runtime_dir(&app))
-        .arg(format!(
-            "@deepseek-ai/dsh@{}",
-            update_channel(&app).as_str()
-        ))
+        .arg("@deepseek-ai/dsh@latest")
         .current_dir(runtime_dir(&app));
     run_output_with_timeout(command, Duration::from_secs(300))
         .map_err(|error| format!("Harness 更新失败: {error}"))?;

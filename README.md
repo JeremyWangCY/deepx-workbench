@@ -22,7 +22,7 @@ Compatibility surface (official Harness only):
 
 Download the Windows x64 NSIS installer from
 [Releases](https://github.com/JeremyWangCY/deepx-workbench/releases/latest).
-The current asset is named `DeepX.Workbench_0.1.9_x64-setup.exe`.
+The current asset is named `DeepX.Workbench_0.1.10_x64-setup.exe`.
 
 The Windows installer contains a tested private Node.js runtime and the official
 DeepSeek Harness runtime. On first run DeepX copies the local Harness, private pnpm runtime, and preinstalled marketplace into its
@@ -40,14 +40,13 @@ above the settings gear. It is deliberately **not** inside the Harness
 settings page.
 
 - **刷新状态** - the small header button rechecks current/latest versions for
-  DeepX, Harness, the plugin marketplace, and the bundled pnpm environment.
-- **更新 Harness** - runs the selected-channel update on demand (stop service,
-  install Harness, relaunch, navigate back). Probe progress is shown inline.
-- **更新通道** - chooses the npm `latest` or `next` dist-tag. The choice is
-  persisted in DeepX application data and used for both update checks and
-  installs; `latest` remains the default.
-- **安装 / 更新插件市场** - updates the preinstalled `dshmarket` plugin using
-  the official `dsh plugin` CLI and DeepX’s bundled pnpm runtime.
+  DeepX, Harness, and the plugin marketplace.
+- **更新 Harness** - updates the newest published Harness release on demand
+  (stop service, install Harness, relaunch, navigate back). Probe progress is
+  shown inline.
+- **安装 / 更新插件市场** - installs or updates `dshmarket` to the newest
+  published npm release using the official `dsh plugin` CLI and DeepX’s bundled
+  pnpm runtime.
 
 ## Design goals
 
@@ -56,7 +55,7 @@ settings page.
 - one app instance; shortcuts restore a minimized or tray-hidden window
 - the default `~/.dsh` web profile, so existing Harness plugins are shared
 - no repeated dependency installs
-- explicit, user-triggered Harness updates
+- explicit, user-triggered updates to the newest published releases
 - bundled pnpm and a ready-to-use marketplace on first run
 - preserve the Harness profile and user-installed plugins (never touched)
 

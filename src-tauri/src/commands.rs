@@ -1,11 +1,11 @@
 use crate::{
     configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, overlay_script, pnpm_version, repair_marketplace_metadata, run_output_with_timeout,
-    runtime_dir, seed_bundled_marketplace, set_update_channel, stop_harness_service,
-    update_channel, update_runtime, valid_runtime, write_no_browser_patch, UpdateChannel,
+    node_bin, overlay_script, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
+    write_no_browser_patch,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{fs, process::Command, time::Duration};
 use tauri::{AppHandle, Manager, Url};
 
@@ -27,23 +27,12 @@ pub struct UpdateStatus {
     pub deepx: VersionStatus,
     pub harness: VersionStatus,
     pub marketplace: VersionStatus,
-    pub pnpm: VersionStatus,
 }
 
 #[derive(Debug, Serialize)]
 pub struct MarketplaceStatus {
     pub installed: bool,
     pub version: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ChannelStatus {
-    pub channel: UpdateChannel,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ChannelSelection {
-    pub channel: UpdateChannel,
 }
 
 fn package_version(manifest: std::path::PathBuf) -> Option<String> {
@@ -72,27 +61,6 @@ fn version_status(current: Option<String>, latest: Option<String>) -> VersionSta
         latest,
         update_available,
     }
-}
-
-async fn npm_latest(
-    client: &reqwest::Client,
-    package: &str,
-    channel: UpdateChannel,
-) -> Option<String> {
-    let package_path = package.replace('/', "%2f");
-    let response = client
-        .get(format!("https://registry.npmjs.org/{package_path}"))
-        .send()
-        .await
-        .ok()?
-        .json::<serde_json::Value>()
-        .await
-        .ok()?;
-    let tag = channel.as_str();
-    response
-        .pointer(&format!("/dist-tags/{tag}"))
-        .and_then(|value| value.as_str())
-        .map(str::to_owned)
 }
 
 async fn npm_latest_release(client: &reqwest::Client, package: &str) -> Option<String> {
@@ -128,44 +96,28 @@ async fn github_latest(client: &reqwest::Client) -> Option<String> {
 
 #[tauri::command]
 pub async fn update_status(app: AppHandle) -> UpdateStatus {
-    let channel = update_channel(&app);
     let current_deepx = Some(app.package_info().version.to_string());
     let current_harness = package_version(harness_package_manifest(&app));
     let current_marketplace = marketplace_version(&app);
-    let current_pnpm = pnpm_version(&app);
     let client = reqwest::Client::builder()
         .user_agent("DeepX Workbench")
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(20))
         .build()
         .ok();
-    let (latest_deepx, latest_harness, latest_marketplace, latest_pnpm) = match client {
+    let (latest_deepx, latest_harness, latest_marketplace) = match client {
         Some(client) => (
             github_latest(&client).await,
-            npm_latest(&client, "@deepseek-ai/dsh", channel).await,
+            npm_latest_release(&client, "@deepseek-ai/dsh").await,
             npm_latest_release(&client, "dshmarket").await,
-            npm_latest_release(&client, "pnpm").await,
         ),
-        None => (None, None, None, None),
+        None => (None, None, None),
     };
     UpdateStatus {
         deepx: version_status(current_deepx, latest_deepx),
         harness: version_status(current_harness, latest_harness),
         marketplace: version_status(current_marketplace, latest_marketplace),
-        pnpm: version_status(current_pnpm, latest_pnpm),
     }
-}
-
-#[tauri::command]
-pub fn get_update_channel(app: AppHandle) -> ChannelStatus {
-    ChannelStatus {
-        channel: update_channel(&app),
-    }
-}
-
-#[tauri::command]
-pub fn select_update_channel(app: AppHandle, selection: ChannelSelection) -> Result<(), String> {
-    set_update_channel(&app, selection.channel)
 }
 
 async fn wait_for_harness(
@@ -401,7 +353,14 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
         let mut command = Command::new(node_bin(&app));
         command
             .arg(dsh_entry(&app))
-            .args(["plugin", "--profile", "web", "add", "dshmarket"]);
+            .args([
+                "plugin",
+                "--profile",
+                "web",
+                "add",
+                "dshmarket@latest",
+                "--config.minimumReleaseAge=0",
+            ]);
         configure_runtime_environment(&mut command, &app)?;
         run_output_with_timeout(command, Duration::from_secs(300))
             .map_err(|error| format!("插件市场安装失败: {error}"))?;

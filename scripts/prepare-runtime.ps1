@@ -110,7 +110,7 @@ try {
     $env:DSH_HOME = $marketplaceHome
     $env:PATH = $pnpmBin
     $env:npm_config_node_linker = "hoisted"
-    & $node $dsh plugin --profile web add dshmarket@latest
+    & $node $dsh plugin --profile web add dshmarket@latest --config.minimumReleaseAge=0
     if ($LASTEXITCODE -ne 0) {
         throw "Bundled dshmarket installation failed"
     }

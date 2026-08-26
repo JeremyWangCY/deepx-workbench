@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.10] - 2026-08-26
+
+### Fixed
+
+- Update `dshmarket` with `dshmarket@latest` and bypass pnpm’s release-age cache,
+  so the action installs the newest published marketplace release instead of
+  retaining the old lockfile version.
+- Always update Harness from the newest published npm release.
+
+### Changed
+
+- Remove the update-channel selector and pnpm update row from the user-facing
+  panel; pnpm remains bundled and configured during initialization.
+
 ## [0.1.9] - 2026-08-26
 
 ### Fixed

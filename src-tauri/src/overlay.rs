@@ -15,9 +15,6 @@ style.textContent = `
 .deepx-refresh{width:24px;height:24px;padding:0;border:1px solid #dfe3e8;border-radius:5px;background:#fff;color:#5f6368;cursor:pointer;font-size:12px;line-height:1}
 .deepx-refresh:hover{color:#366cf6;border-color:#b9cbfa}
 .deepx-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:#5f6368}
-.deepx-seg{display:inline-flex;border:1px solid #dfe3e8;border-radius:5px;overflow:hidden}
-.deepx-channel{padding:2px 7px;border:0;background:#fff;color:#5f6368;cursor:pointer;font-size:11px}
-.deepx-channel.active{background:#366cf6;color:#fff}
 .deepx-btn{width:100%;margin-top:8px;padding:7px;border:0;border-radius:5px;background:#366cf6;color:#fff;cursor:pointer}
 .deepx-btn:disabled{opacity:.55;cursor:not-allowed}
 .deepx-track{height:5px;margin-top:9px;background:#e9edf2;border-radius:3px;overflow:hidden}
@@ -56,15 +53,9 @@ function refresh() {
   return invoke?.('update_status').then(status => {
     panel.querySelector('.deepx-app-version').textContent = versionText(status.deepx);
     panel.querySelector('.deepx-version').textContent = versionText(status.harness);
-    panel.querySelector('.deepx-market').textContent = versionText(status.marketplace);
-    panel.querySelector('.deepx-pnpm').textContent = versionText(status.pnpm);
+    panel.querySelector('.deepx-market-version').textContent = versionText(status.marketplace);
   }).catch(() => {
-    panel.querySelectorAll('.deepx-version, .deepx-app-version, .deepx-market, .deepx-pnpm').forEach(output => output.textContent = '不可用');
-  });
-}
-function setActiveChannel(channel) {
-  panel?.querySelectorAll('.deepx-channel').forEach(button => {
-    button.classList.toggle('active', button.dataset.channel === channel);
+    panel.querySelectorAll('.deepx-version, .deepx-app-version, .deepx-market-version').forEach(output => output.textContent = '不可用');
   });
 }
 function drawPanel() {
@@ -73,12 +64,10 @@ function drawPanel() {
 <div class="deepx-head"><span class="deepx-title">DeepX</span><button class="deepx-refresh" title="刷新状态">↻</button></div>
 <div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">检查中...</span></div>
 <div class="deepx-row"><span>Harness</span><span class="deepx-version">检查中...</span></div>
-<div class="deepx-row"><span>插件市场</span><span class="deepx-market">检查中...</span></div>
-<div class="deepx-row"><span>pnpm 环境</span><span class="deepx-pnpm">检查中...</span></div>
-<div class="deepx-row"><span>更新通道</span><span class="deepx-seg"><button class="deepx-channel" data-channel="latest">latest</button><button class="deepx-channel" data-channel="next">next</button></span></div>
+<div class="deepx-row"><span>插件市场</span><span class="deepx-market-version">检查中...</span></div>
 <button class="deepx-btn deepx-app-update">更新 DeepX</button>
 <button class="deepx-btn deepx-update">更新 Harness</button>
-<button class="deepx-btn deepx-market">安装 / 更新插件市场</button>
+<button class="deepx-btn deepx-market-update">安装 / 更新插件市场</button>
 <div class="deepx-track"><i></i></div>
 <div class="deepx-status"></div>`;
   panel.querySelector('.deepx-app-update').onclick = async () => {
@@ -91,19 +80,11 @@ function drawPanel() {
     try { setBusy(true, '开始更新...'); await invoke('update_harness'); setBusy(false, 'Harness 已更新'); refresh(); }
     catch (error) { setBusy(false, String(error), true); setProgress(0); }
   };
-  panel.querySelector('.deepx-btn.deepx-market').onclick = async () => {
+  panel.querySelector('.deepx-market-update').onclick = async () => {
     if (busy || !invoke) return;
     try { setBusy(true, '准备插件市场...'); await invoke('install_marketplace'); setBusy(false, '插件市场已就绪'); refresh(); }
     catch (error) { setBusy(false, String(error), true); setProgress(0); }
   };
-  panel.querySelectorAll('.deepx-channel').forEach(button => {
-    button.onclick = async () => {
-      if (busy || !invoke) return;
-      const channel = button.dataset.channel;
-      try { await invoke('select_update_channel', { selection: { channel } }); setActiveChannel(channel); refresh(); }
-      catch (error) { setStatus(String(error), true); }
-    };
-  });
   const refreshButton = panel.querySelector('.deepx-refresh');
   refreshButton.onclick = () => {
     if (busy || refreshButton.disabled) return;
@@ -112,7 +93,6 @@ function drawPanel() {
     setStatus('正在刷新状态...');
     refresh().then(() => setStatus('状态已刷新')).finally(() => refreshButton.disabled = false);
   };
-  invoke?.('get_update_channel').then(status => setActiveChannel(status.channel)).catch(() => {});
   refresh();
 }
 function mount() {

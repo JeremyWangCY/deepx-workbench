@@ -40,8 +40,9 @@ data folder).
 
 - The same control offers a one-click "install / update plugin marketplace"
   button.
-- Flow: ensure runtime -> `dsh plugin --profile web add dshmarket` -> verify the
-  dependency is recorded in the web profile -> report progress.
+- Flow: ensure runtime -> `dsh plugin --profile web add dshmarket@latest
+  --config.minimumReleaseAge=0` -> verify the dependency is recorded in the web
+  profile -> report progress.
 - Status is shown inline ("已安装 / 尚未安装").
 
 ## Residual notes
@@ -87,12 +88,6 @@ Node CDP helper (no screenshots needed; DOM state read directly):
   as a “插件市场” settings tab. Opening it rendered `dsh-market v1.20.2`, its
   category filters, plugin listings with Install buttons, pagination, and the
   “升级市场” action.
-- Added the persisted latest/next update channel selector. CDP verification:
-  both IPC reads/writes succeed, the segmented control tracks the active
-  channel, update-channel.json persists across calls, and update_status resolves
-  both dist-tags (0.1.1-rc.2 at verification time). The test machine was
-  restored to latest.
-
 - Split status refresh from updating: the panel header now has a dedicated
   compact refresh button, while the main action is labeled “更新 Harness”.
   CDP verified a 24x24 refresh control, absence of the combined label, and a
