@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-08-26
+
+### Fixed
+
+- Remove pnpm workspace state with machine-specific CI paths from bundled and repaired marketplace profiles.
+
+## [0.1.7] - 2026-08-26
+
+### Fixed
+
+- Treat an incomplete dshmarket installation as missing so first-run repair runs instead of opening a broken marketplace.
+
 ## [0.1.6] - 2026-08-26
 
 ### Fixed
