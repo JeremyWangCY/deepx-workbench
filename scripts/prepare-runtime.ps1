@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Destination = (Join-Path $PSScriptRoot "..\src-tauri\resources\runtime")
 )
 
@@ -87,14 +87,47 @@ $pnpmBin = Join-Path $buildDestination "bin"
 New-Item -ItemType Directory -Force -Path $pnpmBin | Out-Null
 $pnpmCommand = @'
 @echo off
-"%~dp0..\node\node.exe" "%~dp0..\node_modules\pnpm\bin\pnpm.cjs" %*
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0pnpm.ps1" %*
+exit /b %ERRORLEVEL%
 '@
 Set-Content -LiteralPath (Join-Path $pnpmBin "pnpm.cmd") -Value $pnpmCommand -NoNewline -Encoding ascii
 $pnpmPowerShell = @'
-& (Join-Path $PSScriptRoot "..\node\node.exe") (Join-Path $PSScriptRoot "..\node_modules\pnpm\bin\pnpm.cjs") @args
-exit $LASTEXITCODE
+$profilePath = (Get-Location).Path
+$bytes = [Text.Encoding]::UTF8.GetBytes($profilePath.ToLowerInvariant())
+$sha256 = [Security.Cryptography.SHA256]::Create()
+try {
+    $hash = -join ($sha256.ComputeHash($bytes) | ForEach-Object { $_.ToString("x2") })
+} finally {
+    $sha256.Dispose()
+}
+$hash = $hash.Substring(0, 24)
+$mutex = [Threading.Mutex]::new($false, "Local\DeepX-pnpm-$hash")
+$acquired = $false
+$exitCode = 1
+
+try {
+    try {
+        $acquired = $mutex.WaitOne([TimeSpan]::FromMinutes(10))
+    } catch [Threading.AbandonedMutexException] {
+        $acquired = $true
+    }
+    if (-not $acquired) {
+        [Console]::Error.WriteLine("DeepX: 插件安装等待超时，请关闭其他安装后重试。")
+        exit 1
+    }
+    & (Join-Path $PSScriptRoot "..\node\node.exe") (Join-Path $PSScriptRoot "..\node_modules\pnpm\bin\pnpm.cjs") @args
+    $exitCode = $LASTEXITCODE
+} finally {
+    if ($acquired) {
+        $mutex.ReleaseMutex()
+    }
+    $mutex.Dispose()
+}
+
+exit $exitCode
 '@
-Set-Content -LiteralPath (Join-Path $pnpmBin "pnpm.ps1") -Value $pnpmPowerShell -NoNewline -Encoding utf8
+$utf8Bom = [Text.UTF8Encoding]::new($true)
+[IO.File]::WriteAllText((Join-Path $pnpmBin "pnpm.ps1"), $pnpmPowerShell, $utf8Bom)
 
 & $node $dsh --help | Out-Null
 if ($LASTEXITCODE -ne 0) {
