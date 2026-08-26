@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reload-harness"
+description = "Enables the reload_harness command without any pre-configured scope."
+commands.allow = ["reload_harness"]
+
+[[permission]]
+identifier = "deny-reload-harness"
+description = "Denies the reload_harness command without any pre-configured scope."
+commands.deny = ["reload_harness"]

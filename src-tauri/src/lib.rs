@@ -44,6 +44,7 @@ pub fn run() {
             commands::update_status,
             commands::launch_harness,
             commands::show_harness,
+            commands::reload_harness,
             commands::update_deepx,
             commands::initialize_harness,
             commands::update_harness,

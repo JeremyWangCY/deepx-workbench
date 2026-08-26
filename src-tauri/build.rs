@@ -6,6 +6,7 @@ fn main() {
         "initialize_harness",
         "launch_harness",
         "show_harness",
+        "reload_harness",
         "update_harness",
         "marketplace_status",
         "install_marketplace",

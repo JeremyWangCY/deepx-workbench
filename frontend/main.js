@@ -1,13 +1,67 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./style.css";
 
 const root = document.querySelector("#app");
-const state = { ready: false, progress: 0, detail: "正在准备...", error: "" };
+const window = getCurrentWindow();
+const state = { ready: false, progress: 0, detail: "正在准备...", error: "", reloading: false };
+function mountTitlebar() {
+  const titlebar = document.createElement("header");
+  titlebar.className = "titlebar";
+  titlebar.innerHTML = `
+    <div class="titlebar-left">
+      <button class="titlebar-button page-reload" type="button" title="刷新页面" aria-label="刷新页面">↻</button>
+      <span class="titlebar-name">DeepX</span>
+    </div>
+    <div class="titlebar-drag" data-tauri-drag-region></div>
+    <div class="window-controls">
+      <button class="window-button" data-window-action="minimize" type="button" title="最小化" aria-label="最小化">−</button>
+      <button class="window-button" data-window-action="maximize" type="button" title="最大化" aria-label="最大化">□</button>
+      <button class="window-button close" data-window-action="close" type="button" title="关闭" aria-label="关闭">×</button>
+    </div>`;
+  root.appendChild(titlebar);
+
+  titlebar.querySelector(".page-reload").addEventListener("click", async () => {
+    if (!state.ready || state.reloading) return;
+    state.reloading = true;
+    titlebar.querySelector(".page-reload").disabled = true;
+    try {
+      await invoke("reload_harness");
+    } catch (error) {
+      state.reloading = false;
+      titlebar.querySelector(".page-reload").disabled = false;
+      state.error = String(error);
+      render();
+    }
+  });
+  titlebar.querySelectorAll("[data-window-action]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const action = button.dataset.windowAction;
+      if (action === "minimize") await window.minimize();
+      if (action === "maximize") await window.toggleMaximize();
+      if (action === "close") await window.close();
+    });
+  });
+  return titlebar;
+}
+const titlebar = mountTitlebar();
 function render() {
-  root.innerHTML = state.ready
-    ? '<main class="ready"><strong>DeepX</strong><span>正在打开...</span></main>'
-    : '<main><section class="panel"><strong class="brand">DeepX</strong><div class="detail">' + state.detail + '</div><div class="track"><i style="width:' + state.progress + '%"></i></div>' + (state.error ? '<pre class="error">' + state.error + '</pre>' : '') + '</section></main>';
+  const page = root.querySelector("main");
+  if (page) page.remove();
+  const main = document.createElement("main");
+  if (state.ready) {
+    main.className = "ready";
+    main.innerHTML = '<strong>DeepX</strong><span>正在打开...</span>';
+  } else {
+    main.innerHTML = '<section class="panel"><strong class="brand">DeepX</strong><div class="detail"></div><div class="track"><i></i></div><pre class="error"></pre></section>';
+    main.querySelector(".detail").textContent = state.detail;
+    main.querySelector(".track i").style.width = `${state.progress}%`;
+    main.querySelector(".error").textContent = state.error;
+  }
+  root.appendChild(main);
+  titlebar.querySelector(".page-reload").disabled = !state.ready || state.reloading;
 }
 render();
 void listen("runtime-progress", (event) => {
