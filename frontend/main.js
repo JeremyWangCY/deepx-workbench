@@ -17,8 +17,11 @@ void listen("runtime-progress", (event) => {
 });
 async function boot() {
   try {
-    const status = await invoke("runtime_status");
-    if (!status.ready) {
+    const [status, marketplace] = await Promise.all([
+      invoke("runtime_status"),
+      invoke("marketplace_status"),
+    ]);
+    if (!status.ready || !marketplace.installed) {
       await invoke("initialize_harness");
       return;
     }
