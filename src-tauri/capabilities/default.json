@@ -16,6 +16,7 @@
     "allow-initialize-harness",
     "allow-launch-harness",
     "allow-show-harness",
+    "allow-reload-harness",
     "allow-update-harness",
     "allow-marketplace-status",
     "allow-install-marketplace"

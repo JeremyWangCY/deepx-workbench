@@ -7,6 +7,19 @@ if (window.__deepxOverlay?.mount) {
 }
 const style = document.createElement('style');
 style.textContent = `
+.deepx-titlebar{position:fixed;inset:0 0 auto;height:40px;z-index:2147483647;display:flex;align-items:center;background:#f8f9fa;border-bottom:1px solid #e4e7eb;color:#202124;font:13px Segoe UI,system-ui,sans-serif;user-select:none}
+.deepx-titlebar-left{height:100%;display:flex;align-items:center;gap:4px;padding-left:8px}
+.deepx-titlebar-name{padding:0 8px;color:#5f6368}
+.deepx-titlebar-drag{height:100%;flex:1}
+.deepx-page-reload,.deepx-window-button{height:100%;border:0;background:transparent;color:#68717d;cursor:pointer;font:16px/1 Segoe UI,system-ui,sans-serif}
+.deepx-page-reload{width:32px;border-radius:6px;font-size:20px}
+.deepx-page-reload:hover,.deepx-window-button:hover{background:#e9edf1;color:#202124}
+.deepx-page-reload:disabled{opacity:.4;cursor:default}
+.deepx-window-controls{height:100%;display:flex}
+.deepx-window-button{width:46px;font-size:17px}
+.deepx-window-button.deepx-close:hover{background:#d9534f;color:#fff}
+html{padding-top:40px!important}
+body{min-height:calc(100vh - 40px)!important}
 .deepx-box{position:fixed;left:0;bottom:58px;width:56px;padding:0 8px;box-sizing:border-box;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
 .deepx-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;padding:0;border:0;border-radius:8px;background:transparent;color:#5f6368;box-shadow:none;cursor:pointer;font:inherit;text-align:left}
 .deepx-toggle:hover{background:#eef0f2;color:#202124}
@@ -31,6 +44,7 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 let box = null;
+let titlebar = null;
 const internals = window.__TAURI_INTERNALS__;
 const invoke = internals?.invoke?.bind(internals);
 let panel = null;
@@ -38,6 +52,34 @@ let busy = false;
 let progressValue = 0;
 let statusMessage = '';
 let statusError = false;
+function windowCommand(action) {
+  const label = internals?.metadata?.currentWindow?.label || 'main';
+  return invoke?.(`plugin:window|${action}`, { label });
+}
+function mountTitlebar() {
+  if (document.querySelector('.deepx-titlebar')) return;
+  titlebar = document.createElement('header');
+  titlebar.className = 'deepx-titlebar';
+  titlebar.innerHTML = `
+<div class="deepx-titlebar-left"><button class="deepx-page-reload" title="刷新页面" aria-label="刷新页面">↻</button><span class="deepx-titlebar-name">DeepX</span></div>
+<div class="deepx-titlebar-drag" data-tauri-drag-region></div>
+<div class="deepx-window-controls"><button class="deepx-window-button" data-action="minimize" title="最小化" aria-label="最小化">−</button><button class="deepx-window-button" data-action="maximize" title="最大化" aria-label="最大化">□</button><button class="deepx-window-button deepx-close" data-action="close" title="关闭" aria-label="关闭">×</button></div>`;
+  document.body.appendChild(titlebar);
+  const reloadButton = titlebar.querySelector('.deepx-page-reload');
+  reloadButton.onclick = async event => {
+    event.stopPropagation();
+    if (reloadButton.disabled || !invoke) return;
+    reloadButton.disabled = true;
+    try { await invoke('reload_harness'); }
+    catch (error) { reloadButton.disabled = false; setStatus(String(error), true); }
+  };
+  titlebar.querySelectorAll('[data-action]').forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      void windowCommand(button.dataset.action);
+    };
+  });
+}
 function setBusy(next, message = '') {
   busy = next;
   panel?.querySelectorAll('.deepx-btn').forEach(button => button.disabled = busy);
@@ -130,7 +172,9 @@ function syncSidebar() {
 }
 
 function mount() {
-  if (!document.body || document.querySelector('.deepx-box')) return;
+  if (!document.body) return;
+  mountTitlebar();
+  if (document.querySelector('.deepx-box')) { syncSidebar(); return; }
   panel = null;
   box = document.createElement('div');
   box.className = 'deepx-box';

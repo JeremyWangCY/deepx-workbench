@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.13] - 2026-08-26
+
+### Changed
+
+- Replace the native Windows title bar with a compact integrated bar that keeps
+  page reload and window controls on the same row in both startup and Harness.
+
+### Fixed
+
+- Route the top-left page reload through the Harness navigation command so the
+  DeepX controls are mounted again after restarting the page.
+
 ## [0.1.12] - 2026-08-26
 
 ### Fixed

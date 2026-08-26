@@ -202,8 +202,7 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     wait_for_harness(&mut child, &log_path).await
 }
 
-#[tauri::command]
-pub async fn show_harness(app: AppHandle) -> Result<(), String> {
+async fn navigate_to_harness(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
     window
         .navigate(Url::parse("http://127.0.0.1:3080/").map_err(|error| error.to_string())?)
@@ -215,6 +214,16 @@ pub async fn show_harness(app: AppHandle) -> Result<(), String> {
         }
     }
     Err("无法初始化 DeepX 控件".to_string())
+}
+
+#[tauri::command]
+pub async fn show_harness(app: AppHandle) -> Result<(), String> {
+    navigate_to_harness(app).await
+}
+
+#[tauri::command]
+pub async fn reload_harness(app: AppHandle) -> Result<(), String> {
+    navigate_to_harness(app).await
 }
 
 #[tauri::command]
