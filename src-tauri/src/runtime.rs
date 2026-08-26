@@ -196,15 +196,24 @@ pub(crate) fn marketplace_version(app: &AppHandle) -> Option<String> {
 }
 
 pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
+    let profile = match profile_dir(app) {
+        Ok(profile) => profile,
+        Err(_) => return false,
+    };
     marketplace_version(app).is_some()
+        && profile.join("node_modules/dshmarket/lib/index.js").is_file()
 }
 
 pub(crate) fn repair_marketplace_metadata(app: &AppHandle) -> Result<(), String> {
     let profile = profile_dir(app)?;
     let modules_manifest = profile.join("node_modules/.modules.yaml");
+    let workspace_state = profile.join("node_modules/.pnpm-workspace-state-v1.json");
     let virtual_store = profile.join("node_modules/.pnpm");
     if modules_manifest.is_file() {
         fs::remove_file(modules_manifest).map_err(|error| error.to_string())?;
+    }
+    if workspace_state.is_file() {
+        fs::remove_file(workspace_state).map_err(|error| error.to_string())?;
     }
     if virtual_store.is_dir() {
         fs::remove_dir_all(virtual_store).map_err(|error| error.to_string())?;
@@ -325,9 +334,13 @@ pub(crate) fn seed_bundled_marketplace(app: &AppHandle) -> Result<bool, String> 
     }
     copy_directory(&source, &destination)?;
     let modules_manifest = destination.join("node_modules/.modules.yaml");
+    let workspace_state = destination.join("node_modules/.pnpm-workspace-state-v1.json");
     let virtual_store = destination.join("node_modules/.pnpm");
     if modules_manifest.is_file() {
         fs::remove_file(modules_manifest).map_err(|error| error.to_string())?;
+    }
+    if workspace_state.is_file() {
+        fs::remove_file(workspace_state).map_err(|error| error.to_string())?;
     }
     if virtual_store.is_dir() {
         fs::remove_dir_all(virtual_store).map_err(|error| error.to_string())?;
