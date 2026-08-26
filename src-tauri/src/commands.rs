@@ -351,16 +351,14 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
     } else {
         emit_progress(&app, 55, "正在安装 / 更新 dshmarket...");
         let mut command = Command::new(node_bin(&app));
-        command
-            .arg(dsh_entry(&app))
-            .args([
-                "plugin",
-                "--profile",
-                "web",
-                "add",
-                "dshmarket@latest",
-                "--config.minimumReleaseAge=0",
-            ]);
+        command.arg(dsh_entry(&app)).args([
+            "plugin",
+            "--profile",
+            "web",
+            "add",
+            "dshmarket@latest",
+            "--config.minimumReleaseAge=0",
+        ]);
         configure_runtime_environment(&mut command, &app)?;
         run_output_with_timeout(command, Duration::from_secs(300))
             .map_err(|error| format!("插件市场安装失败: {error}"))?;
