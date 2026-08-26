@@ -12,9 +12,9 @@ use overlay::overlay_script;
 pub(crate) use runtime::{
     configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, pnpm_version, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
-    seed_bundled_marketplace, set_update_channel, stop_harness_service, update_channel,
-    update_runtime, valid_runtime, write_no_browser_patch, UpdateChannel,
+    node_bin, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
+    write_no_browser_patch,
 };
 
 fn activate_main(app: &AppHandle) {
@@ -49,8 +49,6 @@ pub fn run() {
             commands::update_harness,
             commands::marketplace_status,
             commands::install_marketplace,
-            commands::get_update_channel,
-            commands::select_update_channel,
         ])
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "显示 DeepX", true, None::<&str>)?;

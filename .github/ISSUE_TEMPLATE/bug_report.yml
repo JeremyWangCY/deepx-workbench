@@ -20,15 +20,6 @@ body:
       description: Run `dsh --version`, or copy the version shown by the DeepX overlay.
     validations:
       required: true
-  - type: dropdown
-    id: channel
-    attributes:
-      label: Update channel
-      options:
-        - latest
-        - next
-    validations:
-      required: true
   - type: textarea
     id: steps
     attributes:
