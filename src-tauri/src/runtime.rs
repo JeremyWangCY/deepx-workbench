@@ -201,7 +201,9 @@ pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
         Err(_) => return false,
     };
     marketplace_version(app).is_some()
-        && profile.join("node_modules/dshmarket/lib/index.js").is_file()
+        && profile
+            .join("node_modules/dshmarket/lib/index.js")
+            .is_file()
 }
 
 pub(crate) fn repair_marketplace_metadata(app: &AppHandle) -> Result<(), String> {
