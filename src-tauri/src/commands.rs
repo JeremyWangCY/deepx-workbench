@@ -164,14 +164,16 @@ async fn stop_current_harness() -> Result<(), String> {
 #[tauri::command]
 pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     let migrated = migrate_private_plugins(&app)?;
-    repair_marketplace_metadata(&app)?;
-    let no_browser_patch = write_no_browser_patch(&app)?;
     if healthy().await {
         if !migrated {
             return Ok(());
         }
         stop_current_harness().await?;
     }
+    if migrated {
+        repair_marketplace_metadata(&app)?;
+    }
+    let no_browser_patch = write_no_browser_patch(&app)?;
     if !valid_runtime(&app) {
         return Err("Harness 尚未安装".to_string());
     }
@@ -349,10 +351,12 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
         install_runtime(app.clone()).await?;
     }
     let migrated = migrate_private_plugins(&app)?;
-    repair_marketplace_metadata(&app)?;
     if migrated && healthy().await {
         emit_progress(&app, 35, "正在切换到共享插件目录...");
         stop_current_harness().await?;
+    }
+    if migrated {
+        repair_marketplace_metadata(&app)?;
     }
     let seeded = seed_bundled_marketplace(&app)?;
     if seeded {

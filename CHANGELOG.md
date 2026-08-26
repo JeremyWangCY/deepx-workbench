@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.15] - 2026-08-26
+
+### Fixed
+
+- Preserve pnpm metadata in normal plugin profiles instead of deleting it on
+  every Harness launch, avoiding unnecessary complete dependency relinks.
+- Serialize pnpm operations for each profile so concurrent plugin installs do
+  not race while replacing native dependencies such as `node-pty` on Windows.
+
 ## [0.1.14] - 2026-08-26
 
 ### Fixed
