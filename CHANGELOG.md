@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.21] - 2026-08-27
+
+### Fixed
+
+- Download DeepX installers through the Windows system downloader instead of the Rust HTTP client, avoiding TLS failures on GitHub release asset redirects.
+- Validate the downloaded installer header before launching it.
 ## [0.1.20] - 2026-08-27
 
 ### Fixed
