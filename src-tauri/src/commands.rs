@@ -49,7 +49,13 @@ pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
         .ok_or_else(|| "主窗口不存在".to_string())?;
     match action.as_str() {
         "minimize" => window.minimize(),
-        "toggle_maximize" => window.toggle_maximize(),
+        "toggle_maximize" => {
+            if window.is_maximized().map_err(|error| error.to_string())? {
+                window.unmaximize()
+            } else {
+                window.maximize()
+            }
+        },
         "close" => window.close(),
         "start_dragging" => window.start_dragging(),
         _ => Err(format!("不支持的窗口操作: {action}")),
