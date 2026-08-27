@@ -40,6 +40,9 @@ jobs:
       - name: Typecheck frontend
         run: pnpm typecheck
 
+      - name: Verify overlay layout
+        run: node scripts/verify-overlay-layout.mjs
+
       - name: Verify window controls
         run: pnpm test:window-controls
 

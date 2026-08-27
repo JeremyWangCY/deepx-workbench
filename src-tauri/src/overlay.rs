@@ -18,8 +18,8 @@ style.textContent = `
 .deepx-window-controls{height:100%;display:flex}
 .deepx-window-button{width:46px;font-size:17px}
 .deepx-window-button.deepx-close:hover{background:#d9534f;color:#fff}
-html{padding-top:40px!important}
-body{min-height:calc(100vh - 40px)!important}
+html{height:100%!important;padding-top:40px!important;box-sizing:border-box!important;overflow:hidden!important}
+body,#root{height:100%!important;min-height:0!important;overflow:hidden!important}
 .deepx-box{position:fixed;left:0;bottom:58px;width:56px;padding:0 8px;box-sizing:border-box;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
 .deepx-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;padding:0;border:0;border-radius:8px;background:transparent;color:#5f6368;box-shadow:none;cursor:pointer;font:inherit;text-align:left}
 .deepx-toggle:hover{background:#eef0f2;color:#202124}

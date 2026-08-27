@@ -57,6 +57,7 @@ jobs:
       - name: Validate release candidate
         run: |
           pnpm typecheck
+          node scripts/verify-overlay-layout.mjs
           pnpm test:window-controls
           cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
