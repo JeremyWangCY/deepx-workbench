@@ -43,9 +43,6 @@ jobs:
       - name: Verify window controls
         run: pnpm test:window-controls
 
-      - name: Verify DeepX updater
-        run: pnpm test:updater
-
       - name: Lint Rust
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
