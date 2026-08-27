@@ -1,6 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
+    webview::PageLoadEvent,
     AppHandle, Manager, WindowEvent,
 };
 
@@ -31,6 +32,15 @@ pub fn run() {
             activate_main(app);
         }))
         .plugin(tauri_plugin_opener::init())
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == PageLoadEvent::Finished
+                && payload.url().host_str() == Some("127.0.0.1")
+                && payload.url().port() == Some(3080)
+            {
+                let _ = webview.eval(overlay_script());
+            }
+        })
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
