@@ -6,7 +6,7 @@ use crate::{
     write_no_browser_patch,
 };
 use serde::Serialize;
-use std::{fs, process::Command, time::Duration};
+use std::{fs, io::Read, process::Command, time::Duration};
 use tauri::{AppHandle, Manager, Url};
 
 #[derive(Debug, Serialize)]
@@ -114,6 +114,35 @@ async fn github_latest(client: &reqwest::Client) -> Option<String> {
         .get("tag_name")
         .and_then(|value| value.as_str())
         .map(|value| value.trim_start_matches('v').to_string())
+}
+
+#[cfg(windows)]
+fn download_deepx_installer(asset_url: &str, installer: &std::path::Path) -> Result<(), String> {
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -UseBasicParsing -Uri $env:DEEPX_UPDATE_URL -OutFile $env:DEEPX_UPDATE_PATH",
+        ])
+        .env("DEEPX_UPDATE_URL", asset_url)
+        .env("DEEPX_UPDATE_PATH", installer)
+        .output()
+        .map_err(|error| format!("启动 Windows 下载器失败: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(format!(
+        "下载 DeepX 更新失败: {}",
+        if detail.is_empty() {
+            "Windows 下载器未返回详细错误".to_string()
+        } else {
+            detail
+        }
+    ))
 }
 
 #[tauri::command]
@@ -302,20 +331,14 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
         fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
         let installer = cache.join("deepx-workbench-update.exe");
         emit_progress(&app, 25, format!("正在下载 DeepX {tag}..."));
-        let bytes = client
-            .get(asset_url)
-            .send()
-            .await
-            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
-            .error_for_status()
-            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
-            .bytes()
-            .await
-            .map_err(|error| format!("读取 DeepX 更新失败: {error}"))?;
-        if !bytes.starts_with(b"MZ") {
+        download_deepx_installer(asset_url, &installer)?;
+        let mut signature = [0; 2];
+        fs::File::open(&installer)
+            .and_then(|mut file| file.read_exact(&mut signature))
+            .map_err(|error| format!("读取 DeepX 更新安装包失败: {error}"))?;
+        if signature != *b"MZ" {
             return Err("下载的 DeepX 安装包无效".to_string());
         }
-        fs::write(&installer, &bytes).map_err(|error| format!("保存 DeepX 更新失败: {error}"))?;
         emit_progress(&app, 90, "正在启动 DeepX 更新安装器...");
         Command::new(&installer)
             .spawn()
