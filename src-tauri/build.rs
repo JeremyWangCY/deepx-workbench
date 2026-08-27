@@ -1,5 +1,6 @@
 fn main() {
     let app_manifest = tauri_build::AppManifest::new().commands(&[
+        "window_action",
         "runtime_status",
         "update_status",
         "update_deepx",

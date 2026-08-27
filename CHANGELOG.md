@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.16] - 2026-08-27
+
+### Fixed
+
+- Make the custom DeepX title bar draggable on both the startup shell and the Harness page.
+- Route minimize, maximize, and close through an allowed application command so the controls work on remote Harness content.
+- Check update versions once when the panel is mounted; only the panel refresh button checks again.
+- Show `安装` for missing components, `更新` for installed outdated components, and no action button when current.
 ## [0.1.15] - 2026-08-26
 
 ### Fixed
