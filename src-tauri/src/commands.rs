@@ -47,20 +47,23 @@ pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口不存在".to_string())?;
-    match action.as_str() {
+    let result = match action.as_str() {
         "minimize" => window.minimize(),
         "toggle_maximize" => {
-            if window.is_maximized().map_err(|error| error.to_string())? {
+            let maximized = window
+                .is_maximized()
+                .map_err(|error| error.to_string())?;
+            if maximized {
                 window.unmaximize()
             } else {
                 window.maximize()
             }
-        },
+        }
         "close" => window.close(),
         "start_dragging" => window.start_dragging(),
-        _ => Err(format!("不支持的窗口操作: {action}")),
-    }
-    .map_err(|error| error.to_string())
+        _ => return Err(format!("不支持的窗口操作: {action}")),
+    };
+    result.map_err(|error| error.to_string())
 }
 
 #[tauri::command]
