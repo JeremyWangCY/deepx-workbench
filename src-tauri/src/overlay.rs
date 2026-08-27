@@ -54,8 +54,10 @@ let statusMessage = '';
 let statusError = false;
 let updateStatus = null;
 let statusRequest = null;
+const windowActions = { minimize: 'minimize', maximize: 'toggle_maximize', close: 'close' };
 function windowCommand(action) {
-  return invoke?.('window_action', { action });
+  if (!invoke) return Promise.reject(new Error('窗口控制暂不可用'));
+  return invoke('window_action', { action });
 }
 function mountTitlebar() {
   if (document.querySelector('.deepx-titlebar')) return;
@@ -80,7 +82,7 @@ function mountTitlebar() {
   titlebar.querySelectorAll('[data-action]').forEach(button => {
     button.onclick = async event => {
       event.stopPropagation();
-      try { await windowCommand(button.dataset.action); }
+      try { await windowCommand(windowActions[button.dataset.action]); }
       catch (error) { setStatus(String(error), true); }
     };
   });

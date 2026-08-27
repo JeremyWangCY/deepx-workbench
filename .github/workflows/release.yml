@@ -57,6 +57,7 @@ jobs:
       - name: Validate release candidate
         run: |
           pnpm typecheck
+          pnpm test:window-controls
           cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
       - name: Build NSIS installer

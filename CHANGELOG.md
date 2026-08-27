@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.19] - 2026-08-27
+
+### Fixed
+
+- Map the Harness title-bar maximize button to the supported `toggle_maximize` window action.
+- Report an unavailable Tauri IPC bridge instead of treating a click as successful with no visible result.
 ## [0.1.18] - 2026-08-27
 
 ### Fixed
