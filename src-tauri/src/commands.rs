@@ -50,9 +50,7 @@ pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
     let result = match action.as_str() {
         "minimize" => window.minimize(),
         "toggle_maximize" => {
-            let maximized = window
-                .is_maximized()
-                .map_err(|error| error.to_string())?;
+            let maximized = window.is_maximized().map_err(|error| error.to_string())?;
             if maximized {
                 window.unmaximize()
             } else {
