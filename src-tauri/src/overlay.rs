@@ -52,9 +52,10 @@ let busy = false;
 let progressValue = 0;
 let statusMessage = '';
 let statusError = false;
+let updateStatus = null;
+let statusRequest = null;
 function windowCommand(action) {
-  const label = internals?.metadata?.currentWindow?.label || 'main';
-  return invoke?.(`plugin:window|${action}`, { label });
+  return invoke?.('window_action', { action });
 }
 function mountTitlebar() {
   if (document.querySelector('.deepx-titlebar')) return;
@@ -65,6 +66,9 @@ function mountTitlebar() {
 <div class="deepx-titlebar-drag" data-tauri-drag-region></div>
 <div class="deepx-window-controls"><button class="deepx-window-button" data-action="minimize" title="最小化" aria-label="最小化">−</button><button class="deepx-window-button" data-action="maximize" title="最大化" aria-label="最大化">□</button><button class="deepx-window-button deepx-close" data-action="close" title="关闭" aria-label="关闭">×</button></div>`;
   document.body.appendChild(titlebar);
+  titlebar.querySelector('.deepx-titlebar-drag').onpointerdown = event => {
+    if (event.button === 0) windowCommand('start_dragging').catch(error => setStatus(String(error), true));
+  };
   const reloadButton = titlebar.querySelector('.deepx-page-reload');
   reloadButton.onclick = async event => {
     event.stopPropagation();
@@ -74,9 +78,10 @@ function mountTitlebar() {
     catch (error) { reloadButton.disabled = false; setStatus(String(error), true); }
   };
   titlebar.querySelectorAll('[data-action]').forEach(button => {
-    button.onclick = event => {
+    button.onclick = async event => {
       event.stopPropagation();
-      void windowCommand(button.dataset.action);
+      try { await windowCommand(button.dataset.action); }
+      catch (error) { setStatus(String(error), true); }
     };
   });
 }
@@ -101,58 +106,92 @@ function setProgress(value) {
   if (indicator) indicator.style.width = `${progressValue}%`;
 }
 function versionText(status) {
-  if (!status) return '不可用';
+  if (!status) return '未检查';
   const current = status.current || '未安装';
   const latest = status.latest || '未知';
   return `当前 ${current} · 最新 ${latest}`;
 }
-function refresh() {
-  return invoke?.('update_status').then(status => {
-    panel.querySelector('.deepx-app-version').textContent = versionText(status.deepx);
-    panel.querySelector('.deepx-version').textContent = versionText(status.harness);
-    panel.querySelector('.deepx-market-version').textContent = versionText(status.marketplace);
-  }).catch(() => {
-    panel.querySelectorAll('.deepx-version, .deepx-app-version, .deepx-market-version').forEach(output => output.textContent = '不可用');
+function actionLabel(status) {
+  if (!status || !status.current) return '安装';
+  return status.update_available ? '更新' : '';
+}
+function applyStatus(status) {
+  updateStatus = status;
+  if (!panel) return;
+  panel.querySelector('.deepx-app-version').textContent = versionText(status.deepx);
+  panel.querySelector('.deepx-version').textContent = versionText(status.harness);
+  panel.querySelector('.deepx-market-version').textContent = versionText(status.marketplace);
+  renderActions();
+}
+function refreshStatus() {
+  if (!invoke) return Promise.resolve();
+  if (statusRequest) return statusRequest;
+  statusRequest = invoke('update_status').then(applyStatus).finally(() => { statusRequest = null; });
+  return statusRequest;
+}
+function renderActions() {
+  const actions = panel?.querySelector('.deepx-actions');
+  if (!actions) return;
+  actions.innerHTML = '';
+  const definitions = [
+    ['deepx', 'deepx-app-update', 'update_deepx'],
+    ['harness', 'deepx-update', 'update_harness'],
+    ['marketplace', 'deepx-market-update', 'install_marketplace'],
+  ];
+  definitions.forEach(([key, className, command]) => {
+    const label = actionLabel(updateStatus?.[key]);
+    if (!label) return;
+    const button = document.createElement('button');
+    button.className = `deepx-btn ${className}`;
+    button.textContent = label;
+    button.disabled = busy;
+    button.onclick = () => runAction(command, key);
+    actions.appendChild(button);
   });
+}
+async function runAction(command, key) {
+  if (busy || !invoke) return;
+  try {
+    setBusy(true, key === 'deepx' ? '正在下载 DeepX 更新...' : key === 'harness' ? '正在更新 Harness...' : '正在准备插件市场...');
+    await invoke(command);
+    setBusy(false, key === 'deepx' ? 'DeepX 更新安装器已启动' : key === 'harness' ? 'Harness 已更新' : '插件市场已更新');
+    if (updateStatus?.[key]) {
+      updateStatus[key].current = updateStatus[key].latest || updateStatus[key].current || '已安装';
+      updateStatus[key].update_available = false;
+      applyStatus(updateStatus);
+    }
+  } catch (error) {
+    setBusy(false, String(error), true);
+    setProgress(0);
+  }
 }
 function drawPanel() {
   if (!panel) return;
   panel.innerHTML = `
 <div class="deepx-head"><span class="deepx-title">DeepX</span><button class="deepx-refresh" title="刷新状态">↻</button></div>
-<div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">检查中...</span></div>
-<div class="deepx-row"><span>Harness</span><span class="deepx-version">检查中...</span></div>
-<div class="deepx-row"><span>插件市场</span><span class="deepx-market-version">检查中...</span></div>
-<button class="deepx-btn deepx-app-update">更新 DeepX</button>
-<button class="deepx-btn deepx-update">更新 Harness</button>
-<button class="deepx-btn deepx-market-update">安装 / 更新插件市场</button>
+<div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">未检查</span></div>
+<div class="deepx-row"><span>Harness</span><span class="deepx-version">未检查</span></div>
+<div class="deepx-row"><span>插件市场</span><span class="deepx-market-version">未检查</span></div>
+<div class="deepx-actions"></div>
 <div class="deepx-track"><i></i></div>
 <div class="deepx-status"></div>`;
-  panel.querySelectorAll('.deepx-btn').forEach(button => button.disabled = busy);
   setProgress(progressValue);
   setStatus(statusMessage, statusError);
-  panel.querySelector('.deepx-app-update').onclick = async () => {
-    if (busy || !invoke) return;
-    try { setBusy(true, '正在下载并启动 DeepX 更新...'); await invoke('update_deepx'); setBusy(false, 'DeepX 更新安装器已启动'); }
-    catch (error) { setBusy(false, String(error), true); }
-  };
-  panel.querySelector('.deepx-update').onclick = async () => {
-    if (busy || !invoke) return;
-    try { setBusy(true, '开始更新...'); await invoke('update_harness'); setBusy(false, 'Harness 已更新'); refresh(); }
-    catch (error) { setBusy(false, String(error), true); setProgress(0); }
-  };
-  panel.querySelector('.deepx-market-update').onclick = async () => {
-    if (busy || !invoke) return;
-    try { setBusy(true, '准备插件市场...'); await invoke('install_marketplace'); setBusy(false, '插件市场已就绪'); refresh(); }
-    catch (error) { setBusy(false, String(error), true); setProgress(0); }
-  };
+  applyStatus(updateStatus || { deepx: null, harness: null, marketplace: null });
   const refreshButton = panel.querySelector('.deepx-refresh');
-  refreshButton.onclick = () => {
+  refreshButton.onclick = async () => {
     if (busy || refreshButton.disabled) return;
     refreshButton.disabled = true;
     setStatus('正在刷新状态...');
-    refresh().then(() => setStatus('状态已刷新')).finally(() => refreshButton.disabled = false);
+    try {
+      await refreshStatus();
+      setStatus('状态已刷新');
+    } catch (error) {
+      setStatus(String(error), true);
+    } finally {
+      refreshButton.disabled = false;
+    }
   };
-  refresh();
 }
 function syncSidebar() {
   if (!box) return;
@@ -200,6 +239,7 @@ if (internals?.transformCallback && internals?.invoke) {
 }
 window.__deepxOverlay = { mount };
 mount();
+void refreshStatus().catch(() => {});
 new MutationObserver(() => { mount(); syncSidebar(); }).observe(document.documentElement, { childList: true, subtree: true });
 window.addEventListener('resize', syncSidebar);
 })();

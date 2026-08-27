@@ -40,6 +40,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::window_action,
             commands::runtime_status,
             commands::update_status,
             commands::launch_harness,

@@ -1,11 +1,34 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./style.css";
 
 const root = document.querySelector("#app");
-const window = getCurrentWindow();
 const state = { ready: false, progress: 0, detail: "正在准备...", error: "", reloading: false };
+
+function windowAction(action) {
+  return invoke("window_action", { action });
+}
+
+function bindWindowControls(titlebar) {
+  titlebar.querySelector(".titlebar-drag").addEventListener("pointerdown", (event) => {
+    if (event.button === 0) void windowAction("start_dragging");
+  });
+  titlebar.querySelectorAll("[data-window-action]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      try {
+        const action = button.dataset.windowAction;
+        if (action === "minimize") await windowAction("minimize");
+        if (action === "maximize") await windowAction("toggle_maximize");
+        if (action === "close") await windowAction("close");
+      } catch (error) {
+        state.error = String(error);
+        render();
+      }
+    });
+  });
+}
+
 function mountTitlebar() {
   const titlebar = document.createElement("header");
   titlebar.className = "titlebar";
@@ -21,7 +44,7 @@ function mountTitlebar() {
       <button class="window-button close" data-window-action="close" type="button" title="关闭" aria-label="关闭">×</button>
     </div>`;
   root.appendChild(titlebar);
-
+  bindWindowControls(titlebar);
   titlebar.querySelector(".page-reload").addEventListener("click", async () => {
     if (!state.ready || state.reloading) return;
     state.reloading = true;
@@ -35,18 +58,11 @@ function mountTitlebar() {
       render();
     }
   });
-  titlebar.querySelectorAll("[data-window-action]").forEach((button) => {
-    button.addEventListener("click", async (event) => {
-      event.stopPropagation();
-      const action = button.dataset.windowAction;
-      if (action === "minimize") await window.minimize();
-      if (action === "maximize") await window.toggleMaximize();
-      if (action === "close") await window.close();
-    });
-  });
   return titlebar;
 }
+
 const titlebar = mountTitlebar();
+
 function render() {
   const page = root.querySelector("main");
   if (page) page.remove();
@@ -63,12 +79,14 @@ function render() {
   root.appendChild(main);
   titlebar.querySelector(".page-reload").disabled = !state.ready || state.reloading;
 }
+
 render();
 void listen("runtime-progress", (event) => {
   state.progress = Number(event.payload?.percentage || 0);
   state.detail = event.payload?.detail || state.detail;
   render();
 });
+
 async function boot() {
   try {
     const [status, marketplace] = await Promise.all([
@@ -88,4 +106,5 @@ async function boot() {
     render();
   }
 }
+
 void boot();

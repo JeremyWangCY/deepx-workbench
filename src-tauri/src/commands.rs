@@ -43,6 +43,21 @@ fn package_version(manifest: std::path::PathBuf) -> Option<String> {
 }
 
 #[tauri::command]
+pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    match action.as_str() {
+        "minimize" => window.minimize(),
+        "toggle_maximize" => window.toggle_maximize(),
+        "close" => window.close(),
+        "start_dragging" => window.start_dragging(),
+        _ => Err(format!("不支持的窗口操作: {action}")),
+    }
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn runtime_status(app: AppHandle) -> RuntimeStatus {
     RuntimeStatus {
         ready: valid_runtime(&app),
