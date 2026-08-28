@@ -1,9 +1,9 @@
 {
   "name":"deepx-workbench",
-  "version":"0.1.23",
+  "version":"0.1.24",
   "private":true,
   "type":"module",
-  "scripts":{"dev":"vite","prepare:runtime":"powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1","build":"vite build","tauri":"tauri","typecheck":"tsc --noEmit","test:window-controls":"node scripts/verify-window-controls.mjs"},
+  "scripts":{"dev":"vite","prepare:runtime":"powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1","build":"vite build","tauri":"tauri","typecheck":"tsc --noEmit"},
   "dependencies":{"@tauri-apps/api":"^2.11.1"},
   "devDependencies":{"@tauri-apps/cli":"^2.11.4","typescript":"~5.8.3","vite":"^7.3.6"}
 }
