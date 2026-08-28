@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter, Manager, Url};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Serialize)]
 pub struct RuntimeStatus {
