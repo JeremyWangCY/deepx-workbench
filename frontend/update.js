@@ -8,13 +8,31 @@ const version = $("version");
 const statusEl = $("status");
 const bytesEl = $("bytes");
 const speedEl = $("speed");
+const etaEl = $("eta");
 const startBtn = $("start");
 const hint = $("hint");
 
 function fmtBytes(n) {
   if (n == null) return "--";
   const mb = n / (1024 * 1024);
-  return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  return `${Math.round(n / 1024)} KB`;
+}
+
+function fmtSpeed(bps) {
+  if (!bps || bps <= 0) return "--";
+  const mbps = bps / (1024 * 1024);
+  if (mbps >= 1) return `${mbps.toFixed(1)} MB/s`;
+  return `${Math.max(1, Math.round(bps / 1024))} KB/s`;
+}
+
+function fmtEta(remainingBytes, bps) {
+  if (!bps || bps <= 0 || remainingBytes <= 0) return "--";
+  const seconds = remainingBytes / bps;
+  if (seconds < 90) return `剩余 ${Math.max(1, Math.round(seconds))} 秒`;
+  if (seconds < 5400) return `剩余 ${Math.round(seconds / 60)} 分钟`;
+  return `剩余 ${(seconds / 3600).toFixed(1)} 小时`;
 }
 
 function setStatus(text, cls) {
@@ -48,7 +66,8 @@ startBtn.addEventListener("click", async () => {
   startBtn.textContent = "下载中…";
   bar.style.width = "0%";
   bytesEl.textContent = "-- / --";
-  speedEl.textContent = "-- MB/s";
+  speedEl.textContent = "--";
+  etaEl.textContent = "--";
   hint.textContent = "";
   sub.textContent = "正在准备下载…";
   try {
@@ -67,11 +86,13 @@ await listen("deepx-update-progress", (event) => {
   if (!p || typeof p.percent !== "number") return;
   bar.style.width = `${Math.max(0, Math.min(p.percent, 100))}%`;
   bytesEl.textContent = `${fmtBytes(p.downloaded)} / ${fmtBytes(p.total)}`;
-  const mbps = p.speed > 0 ? (p.speed / (1024 * 1024)).toFixed(1) : "--";
-  speedEl.textContent = `${mbps} MB/s`;
+  speedEl.textContent = fmtSpeed(p.speed);
+  const remaining = p.total && p.downloaded ? p.total - p.downloaded : 0;
+  etaEl.textContent = fmtEta(remaining, p.speed);
   if (p.detail) sub.textContent = p.detail;
   if (p.percent >= 100) {
     sub.textContent = "下载完成，正在启动安装器…";
+    etaEl.textContent = "--";
     hint.textContent = `共下载 ${fmtBytes(p.downloaded)}`;
   }
 });
