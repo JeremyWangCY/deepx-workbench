@@ -18,6 +18,24 @@ assert.match(
   "IPC 桥接不可用时，窗口按钮必须报错而不能静默成功",
 );
 assert.match(
+  source,
+  /class="deepx-update-toggle" title="更新" aria-label="更新">更新<\/button>/,
+  "更新入口必须位于顶部窗口栏且只显示“更新”",
+);
+assert.doesNotMatch(
+  source,
+  /deepx-box|deepx-toggle|syncSidebar/,
+  "更新入口不能回到底部侧栏，也不能保留旧的侧栏同步逻辑",
+);
+assert.match(
+  source,
+  /return status\.update_available \? `更新 \$\{target\}` : '';/,
+  "面板内更新按钮必须明确写出更新目标",
+);
+assert.match(source, /\['deepx', 'deepx-app-update', 'update_deepx', 'DeepX'\]/);
+assert.match(source, /\['harness', 'deepx-update', 'update_harness', 'Harness'\]/);
+assert.match(source, /\['marketplace', 'deepx-market-update', 'install_marketplace', '插件市场'\]/);
+assert.match(
   appSource,
   /payload\.event\(\) == PageLoadEvent::Finished[\s\S]*payload\.url\(\)\.host_str\(\) == Some\("127\.0\.0\.1"\)[\s\S]*payload\.url\(\)\.port\(\) == Some\(3080\)/,
   "Harness 页面完成导航后必须恢复顶栏覆盖层",

@@ -15,21 +15,15 @@ style.textContent = `
 .deepx-page-reload{width:32px;border-radius:6px;font-size:20px}
 .deepx-page-reload:hover,.deepx-window-button:hover{background:#e9edf1;color:#202124}
 .deepx-page-reload:disabled{opacity:.4;cursor:default}
+.deepx-update-toggle{height:100%;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#68717d;cursor:pointer;font:13px Segoe UI,system-ui,sans-serif}
+.deepx-update-toggle:hover{background:#e9edf1;color:#202124}
+.deepx-update-toggle:disabled{opacity:.55;cursor:not-allowed}
 .deepx-window-controls{height:100%;display:flex}
 .deepx-window-button{width:46px;font-size:17px}
 .deepx-window-button.deepx-close:hover{background:#d9534f;color:#fff}
 html{height:100%!important;padding-top:40px!important;box-sizing:border-box!important;overflow:hidden!important}
 body,#root{height:100%!important;min-height:0!important;overflow:hidden!important}
-.deepx-box{position:fixed;left:0;bottom:58px;width:56px;padding:0 8px;box-sizing:border-box;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
-.deepx-toggle{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:40px;padding:0;border:0;border-radius:8px;background:transparent;color:#5f6368;box-shadow:none;cursor:pointer;font:inherit;text-align:left}
-.deepx-toggle:hover{background:#eef0f2;color:#202124}
-.deepx-toggle:disabled{opacity:.55;cursor:not-allowed}
-.deepx-toggle-icon{font-size:17px;line-height:1}
-.deepx-toggle-label{white-space:nowrap}
-.deepx-box.compact .deepx-toggle-label{display:none}
-.deepx-box.expanded{width:100%;max-width:360px}
-.deepx-box.expanded .deepx-toggle{justify-content:flex-start;padding:0 12px}
-.deepx-panel{width:min(360px,calc(100vw - 24px));margin-bottom:8px;padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px #0003}
+.deepx-panel{position:fixed;top:48px;left:8px;width:min(360px,calc(100vw - 24px));padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px #0003;z-index:2147483647;font:13px Segoe UI,system-ui,sans-serif;color:#202124}
 .deepx-head{align-items:center;justify-content:space-between;display:flex}
 .deepx-title{font-weight:650}
 .deepx-refresh{width:24px;height:24px;padding:0;border:1px solid #dfe3e8;border-radius:5px;background:#fff;color:#5f6368;cursor:pointer;font-size:12px;line-height:1}
@@ -43,7 +37,7 @@ body,#root{height:100%!important;min-height:0!important;overflow:hidden!importan
 .deepx-error{color:#c23d3d}
 `;
 document.head.appendChild(style);
-let box = null;
+let updateButton = null;
 let titlebar = null;
 const internals = window.__TAURI_INTERNALS__;
 const invoke = internals?.invoke?.bind(internals);
@@ -60,11 +54,13 @@ function windowCommand(action) {
   return invoke('window_action', { action });
 }
 function mountTitlebar() {
-  if (document.querySelector('.deepx-titlebar')) return;
+  if (titlebar?.isConnected) return;
+  panel?.remove();
+  panel = null;
   titlebar = document.createElement('header');
   titlebar.className = 'deepx-titlebar';
   titlebar.innerHTML = `
-<div class="deepx-titlebar-left"><button class="deepx-page-reload" title="刷新页面" aria-label="刷新页面">↻</button><span class="deepx-titlebar-name">DeepX</span></div>
+<div class="deepx-titlebar-left"><button class="deepx-page-reload" title="刷新页面" aria-label="刷新页面">↻</button><span class="deepx-titlebar-name">DeepX</span><button class="deepx-update-toggle" title="更新" aria-label="更新">更新</button></div>
 <div class="deepx-titlebar-drag" data-tauri-drag-region></div>
 <div class="deepx-window-controls"><button class="deepx-window-button" data-action="minimize" title="最小化" aria-label="最小化">−</button><button class="deepx-window-button" data-action="maximize" title="最大化" aria-label="最大化">□</button><button class="deepx-window-button deepx-close" data-action="close" title="关闭" aria-label="关闭">×</button></div>`;
   document.body.appendChild(titlebar);
@@ -78,6 +74,15 @@ function mountTitlebar() {
     reloadButton.disabled = true;
     try { await invoke('reload_harness'); }
     catch (error) { reloadButton.disabled = false; setStatus(String(error), true); }
+  };
+  updateButton = titlebar.querySelector('.deepx-update-toggle');
+  updateButton.onclick = event => {
+    event.stopPropagation();
+    if (panel) { panel.remove(); panel = null; return; }
+    panel = document.createElement('div');
+    panel.className = 'deepx-panel';
+    document.body.appendChild(panel);
+    drawPanel();
   };
   titlebar.querySelectorAll('[data-action]').forEach(button => {
     button.onclick = async event => {
@@ -113,9 +118,9 @@ function versionText(status) {
   const latest = status.latest || '未知';
   return `当前 ${current} · 最新 ${latest}`;
 }
-function actionLabel(status) {
-  if (!status || !status.current) return '安装';
-  return status.update_available ? '更新' : '';
+function actionLabel(status, target) {
+  if (!status || !status.current) return `安装 ${target}`;
+  return status.update_available ? `更新 ${target}` : '';
 }
 function applyStatus(status) {
   updateStatus = status;
@@ -136,12 +141,12 @@ function renderActions() {
   if (!actions) return;
   actions.innerHTML = '';
   const definitions = [
-    ['deepx', 'deepx-app-update', 'update_deepx'],
-    ['harness', 'deepx-update', 'update_harness'],
-    ['marketplace', 'deepx-market-update', 'install_marketplace'],
+    ['deepx', 'deepx-app-update', 'update_deepx', 'DeepX'],
+    ['harness', 'deepx-update', 'update_harness', 'Harness'],
+    ['marketplace', 'deepx-market-update', 'install_marketplace', '插件市场'],
   ];
-  definitions.forEach(([key, className, command]) => {
-    const label = actionLabel(updateStatus?.[key]);
+  definitions.forEach(([key, className, command, target]) => {
+    const label = actionLabel(updateStatus?.[key], target);
     if (!label) return;
     const button = document.createElement('button');
     button.className = `deepx-btn ${className}`;
@@ -195,40 +200,9 @@ function drawPanel() {
     }
   };
 }
-function syncSidebar() {
-  if (!box) return;
-  const candidates = [...document.body.querySelectorAll('*')].filter(element => {
-    if (element.closest('.deepx-box')) return false;
-    const rect = element.getBoundingClientRect();
-    const style = getComputedStyle(element);
-    return rect.left <= 4 && rect.top <= 4 && rect.height >= innerHeight * 0.7 &&
-      rect.width >= 48 && rect.width <= Math.min(innerWidth * 0.8, 420) &&
-      ['fixed', 'sticky'].includes(style.position);
-  });
-  const width = Math.round(candidates.reduce((largest, element) =>
-    Math.max(largest, element.getBoundingClientRect().width), 56));
-  box.classList.toggle('expanded', width > 96);
-  box.classList.toggle('compact', width <= 96);
-  box.style.width = Math.min(width, 360) + 'px';
-}
-
 function mount() {
   if (!document.body) return;
   mountTitlebar();
-  if (document.querySelector('.deepx-box')) { syncSidebar(); return; }
-  panel = null;
-  box = document.createElement('div');
-  box.className = 'deepx-box';
-  box.innerHTML = '<button class="deepx-toggle" title="DeepX、Harness 与插件市场更新"><span class="deepx-toggle-icon">↻</span><span class="deepx-toggle-label">更新</span></button>';
-  document.body.appendChild(box);
-  syncSidebar();
-  box.querySelector('.deepx-toggle').onclick = () => {
-    if (panel) { panel.remove(); panel = null; return; }
-    panel = document.createElement('div');
-    panel.className = 'deepx-panel';
-    box.prepend(panel);
-    drawPanel();
-  };
 }
 if (internals?.transformCallback && internals?.invoke) {
   internals.invoke('plugin:event|listen', {
@@ -242,8 +216,7 @@ if (internals?.transformCallback && internals?.invoke) {
 window.__deepxOverlay = { mount };
 mount();
 void refreshStatus().catch(() => {});
-new MutationObserver(() => { mount(); syncSidebar(); }).observe(document.documentElement, { childList: true, subtree: true });
-window.addEventListener('resize', syncSidebar);
+new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
 })();
 "#,
     )
