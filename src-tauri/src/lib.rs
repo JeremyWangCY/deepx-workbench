@@ -1,15 +1,11 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    webview::PageLoadEvent,
     AppHandle, Manager, WindowEvent,
 };
 
 mod commands;
-mod overlay;
 mod runtime;
-
-use overlay::overlay_script;
 pub(crate) use runtime::{
     configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
@@ -32,15 +28,6 @@ pub fn run() {
             activate_main(app);
         }))
         .plugin(tauri_plugin_opener::init())
-        .on_page_load(|webview, payload| {
-            if webview.label() == "main"
-                && payload.event() == PageLoadEvent::Finished
-                && payload.url().host_str() == Some("127.0.0.1")
-                && payload.url().port() == Some(3080)
-            {
-                let _ = webview.eval(overlay_script());
-            }
-        })
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
@@ -64,8 +51,9 @@ pub fn run() {
         ])
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "显示 DeepX", true, None::<&str>)?;
+            let reload = MenuItem::with_id(app, "reload", "刷新页面", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 DeepX", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &reload, &quit])?;
 
             TrayIconBuilder::with_id("deepx-tray")
                 .icon(
@@ -78,6 +66,13 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => activate_main(app),
+                    "reload" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if let Ok(url) = tauri::Url::parse("http://127.0.0.1:3080/") {
+                                let _ = window.navigate(url);
+                            }
+                        }
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })

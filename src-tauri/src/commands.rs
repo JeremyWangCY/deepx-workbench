@@ -1,7 +1,7 @@
 use crate::{
     configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, overlay_script, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    node_bin, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
     seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
     write_no_browser_patch,
 };
@@ -231,13 +231,7 @@ async fn navigate_to_harness(app: AppHandle) -> Result<(), String> {
     window
         .navigate(Url::parse("http://127.0.0.1:3080/").map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
-    for _ in 0..10 {
-        tokio::time::sleep(Duration::from_millis(250)).await;
-        if window.eval(overlay_script()).is_ok() {
-            return Ok(());
-        }
-    }
-    Err("无法初始化 DeepX 控件".to_string())
+    Ok(())
 }
 
 #[tauri::command]

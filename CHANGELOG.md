@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.24] - 2026-08-28
+
+### Fixed
+
+- Use the native window titlebar (`decorations: true`) and remove the injected DOM titlebar overlay that covered plugin UI anchored to the top of the Harness page — most visibly the `dsh-better-sidebar` expand/collapse toggle in the top-right corner, which made the sidebar workbench appear absent.
+- Drop the overlay-related verification scripts and their CI/release steps.
+
+### Changed
+
+- Harness reload is now available from the system tray menu (「刷新页面」).
+
 ## [0.1.20] - 2026-08-27
 
 ### Fixed
