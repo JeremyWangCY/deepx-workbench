@@ -1,6 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
+    webview::PageLoadEvent,
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
