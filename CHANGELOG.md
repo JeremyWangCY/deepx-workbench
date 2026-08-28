@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.27] - 2026-08-28
+
+### Added
+
+- Bring back the top toolbar (刷新 / 更新 / drag region) that hosted the
+  refresh and update actions, restored as a non-covering bar: it sits at
+  z-index 20, BELOW the plugin host layer (z-index 25, pointer-events:none),
+  so any plugin UI pinned to the top of the Harness page renders above the
+  toolbar and stays clickable regardless of position.
+
 ## [0.1.26] - 2026-08-28
 
 ### Changed
