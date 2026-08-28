@@ -407,11 +407,6 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
     }
 }
 #[tauri::command]
-pub fn open_update_window(app: AppHandle) -> Result<(), String> {
-    crate::open_update_window(&app).map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
     install_runtime(app.clone()).await?;
     if !marketplace_installed(&app) {

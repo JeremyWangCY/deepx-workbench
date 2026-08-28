@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.28] - 2026-08-28
+
+### Changed
+
+- Revert the standalone update window: clicking 更新 in the top toolbar now
+  toggles the in-page update panel (DeepX / Harness / 插件市场 status, action
+  buttons, progress bar with downloaded size / speed / ETA) exactly like the
+  original 0.1.23 panel.
+- Remove the separate "update" window entirely: WebviewWindowBuilder, the
+  open_update_window command and its permission, the update.html entry and
+  files, and the capability window entry.
+
 ## [0.1.27] - 2026-08-28
 
 ### Added

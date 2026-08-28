@@ -2,37 +2,183 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
     webview::PageLoadEvent,
-    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, WindowEvent,
 };
 
 // ponytail: toolbar sits at z-index 20, below the plugin host layer (z-index 25,
 // pointer-events:none), so any top-fixed plugin UI renders above it and stays
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
-  if (window.__deepxToolbar && window.__deepxToolbar.isConnected) { return; }
-  const css = '.deepx-toolbar{position:fixed;top:0;left:0;right:0;height:40px;z-index:20;display:flex;align-items:center;background:#f8f9fa;border-bottom:1px solid #e4e7eb;color:#202124;font:13px Segoe UI,system-ui,sans-serif;user-select:none}.deepx-toolbar-left{height:100%;display:flex;align-items:center;gap:4px;padding-left:8px}.deepx-toolbar-name{padding:0 8px;color:#5f6368}.deepx-toolbar-drag{height:100%;flex:1}.deepx-page-reload,.deepx-update-toggle{height:100%;border:0;border-radius:6px;background:transparent;color:#68717d;cursor:pointer;font:13px Segoe UI,system-ui,sans-serif}.deepx-page-reload{width:36px;font-size:20px}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1;color:#202124}.deepx-page-reload:disabled{opacity:.4;cursor:default}.deepx-update-toggle{padding:0 12px}html{padding-top:40px!important;box-sizing:border-box!important}';
+  if (window.__deepxToolbar && window.__deepxToolbar.mounted) { return; }
+  const css = '.deepx-toolbar{position:fixed;top:0;left:0;right:0;height:40px;z-index:20;display:flex;align-items:center;background:#f8f9fa;border-bottom:1px solid #e4e7eb;color:#202124;font:13px Segoe UI,system-ui,sans-serif;user-select:none}.deepx-toolbar-left{height:100%;display:flex;align-items:center;gap:4px;padding-left:8px}.deepx-toolbar-name{padding:0 8px;color:#5f6368}.deepx-toolbar-drag{height:100%;flex:1}.deepx-page-reload,.deepx-update-toggle{height:100%;border:0;border-radius:6px;background:transparent;color:#68717d;cursor:pointer;font:13px Segoe UI,system-ui,sans-serif}.deepx-page-reload{width:36px;font-size:20px}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1;color:#202124}.deepx-page-reload:disabled{opacity:.4;cursor:default}.deepx-update-toggle{padding:0 12px}.deepx-panel{position:fixed;top:48px;left:8px;width:min(360px,calc(100vw - 24px));padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.19);z-index:30;font:13px Segoe UI,system-ui,sans-serif;color:#202124}.deepx-head{display:flex;align-items:center;justify-content:space-between}.deepx-title{font-weight:650}.deepx-refresh{width:24px;height:24px;padding:0;border:1px solid #dfe3e8;border-radius:5px;background:#fff;color:#5f6368;cursor:pointer;font-size:12px;line-height:1}.deepx-refresh:hover{color:#366cf6;border-color:#b9cbfa}.deepx-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:#5f6368}.deepx-btn{width:100%;margin-top:8px;padding:7px;border:0;border-radius:5px;background:#366cf6;color:#fff;cursor:pointer}.deepx-btn:disabled{opacity:.55;cursor:not-allowed}.deepx-track{height:5px;margin-top:9px;background:#e9edf2;border-radius:3px;overflow:hidden}.deepx-track i{display:block;height:100%;background:#366cf6;width:0;transition:width .2s}.deepx-status{color:#5f6368;font-size:11px;line-height:1.5;margin-top:6px;min-height:18px}.deepx-error{color:#c23d3d}html{padding-top:40px!important;box-sizing:bord... (line truncated to 2000 chars)
   const style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
   const internals = window.__TAURI_INTERNALS__;
   const invoke = internals && internals.invoke ? internals.invoke.bind(internals) : null;
-  const toolbar = document.createElement('header');
-  toolbar.className = 'deepx-toolbar';
-  toolbar.innerHTML = '<div class="deepx-toolbar-left"><button class="deepx-page-reload" title="刷新页面">↻</button><span class="deepx-toolbar-name">DeepX</span><button class="deepx-update-toggle" title="更新">更新</button></div><div class="deepx-toolbar-drag"></div>';
-  document.body.appendChild(toolbar);
-  window.__deepxToolbar = toolbar;
-  toolbar.querySelector('.deepx-toolbar-drag').addEventListener('pointerdown', function (event) {
-    if (event.button === 0 && invoke) { invoke('window_action', { action: 'start_dragging' }).catch(function () {}); }
-  });
-  const reloadButton = toolbar.querySelector('.deepx-page-reload');
-  reloadButton.addEventListener('click', function () {
-    if (reloadButton.disabled || !invoke) { return; }
-    reloadButton.disabled = true;
-    invoke('reload_harness').catch(function () { reloadButton.disabled = false; });
-  });
-  toolbar.querySelector('.deepx-update-toggle').addEventListener('click', function () {
-    if (invoke) { invoke('open_update_window').catch(function () {}); }
-  });
+  let panel = null;
+  let busy = false;
+  let progressValue = 0;
+  let statusMessage = '';
+  let statusError = false;
+  let updateStatus = null;
+  let statusRequest = null;
+  function fmtBytes(n) {
+    if (n == null) { return '--'; }
+    const mb = n / 1048576;
+    if (mb >= 1024) { return (mb / 1024).toFixed(2) + ' GB'; }
+    if (mb >= 1) { return mb.toFixed(1) + ' MB'; }
+    return Math.round(n / 1024) + ' KB';
+  }
+  function fmtSpeed(bps) {
+    if (!bps || bps <= 0) { return '--'; }
+    const mbps = bps / 1048576;
+    if (mbps >= 1) { return mbps.toFixed(1) + ' MB/s'; }
+    return Math.max(1, Math.round(bps / 1024)) + ' KB/s';
+  }
+  function fmtEta(remainingBytes, bps) {
+    if (!bps || bps <= 0 || remainingBytes <= 0) { return '--'; }
+    const seconds = remainingBytes / bps;
+    if (seconds < 90) { return '剩余 ' + Math.max(1, Math.round(seconds)) + ' 秒'; }
+    if (seconds < 5400) { return '剩余 ' + Math.round(seconds / 60) + ' 分钟'; }
+    return '剩余 ' + (seconds / 3600).toFixed(1) + ' 小时';
+  }
+  function setStatus(text, isError) {
+    statusMessage = text;
+    statusError = !!isError;
+    const output = panel && panel.querySelector('.deepx-status');
+    if (output) { output.textContent = statusMessage; output.classList.toggle('deepx-error', statusError); }
+  }
+  function setProgress(value) {
+    progressValue = Math.max(0, Math.min(100, Number(value) || 0));
+    const indicator = panel && panel.querySelector('.deepx-track i');
+    if (indicator) { indicator.style.width = progressValue + '%'; }
+  }
+  function setBusy(next, message) {
+    busy = next;
+    if (panel) { panel.querySelectorAll('.deepx-btn').forEach(function (button) { button.disabled = busy; }); }
+    setStatus(message, false);
+  }
+  function versionText(status) {
+    if (!status) { return '未检查'; }
+    return '当前 ' + (status.current || '未安装') + ' · 最新 ' + (status.latest || '未知');
+  }
+  function actionLabel(status, target) {
+    if (!status || !status.current) { return '安装 ' + target; }
+    return status.update_available ? '更新 ' + target : '';
+  }
+  function applyStatus(status) {
+    updateStatus = status;
+    if (!panel) { return; }
+    panel.querySelector('.deepx-app-version').textContent = versionText(status && status.deepx);
+    panel.querySelector('.deepx-version').textContent = versionText(status && status.harness);
+    panel.querySelector('.deepx-market-version').textContent = versionText(status && status.marketplace);
+    renderActions();
+  }
+  function refreshStatus() {
+    if (!invoke) { return Promise.resolve(); }
+    if (statusRequest) { return statusRequest; }
+    statusRequest = invoke('update_status').then(applyStatus).finally(function () { statusRequest = null; });
+    return statusRequest;
+  }
+  function renderActions() {
+    const actions = panel && panel.querySelector('.deepx-actions');
+    if (!actions) { return; }
+    actions.innerHTML = '';
+    const definitions = [['deepx','deepx-app-update','update_deepx','DeepX'],['harness','deepx-update','update_harness','Harness'],['marketplace','deepx-market-update','install_marketplace','插件市场']];
+    definitions.forEach(function (item) {
+      const key = item[0];
+      const command = item[2];
+      const target = item[3];
+      const label = updateStatus ? actionLabel(updateStatus[key], target) : '';
+      if (!label) { return; }
+      const button = document.createElement('button');
+      button.className = 'deepx-btn ' + item[1];
+      button.textContent = label;
+      button.disabled = busy;
+      button.onclick = function () { runAction(command, key); };
+      actions.appendChild(button);
+    });
+  }
+  async function runAction(command, key) {
+    if (busy || !invoke) { return; }
+    try {
+      if (key === 'deepx') { setBusy(true, '正在下载 DeepX 更新...'); }
+      else if (key === 'harness') { setBusy(true, '正在更新 Harness...'); }
+      else { setBusy(true, '正在准备插件市场...'); }
+      await invoke(command);
+      if (key === 'deepx') { setBusy(false, 'DeepX 更新安装器已启动'); }
+      else if (key === 'harness') { setBusy(false, 'Harness 已更新'); }
+      else { setBusy(false, '插件市场已更新'); }
+      if (updateStatus && updateStatus[key]) {
+        updateStatus[key].current = updateStatus[key].latest || updateStatus[key].current || '已安装';
+        updateStatus[key].update_available = false;
+        applyStatus(updateStatus);
+      }
+    } catch (error) {
+      setBusy(false, String(error), true);
+      setProgress(0);
+    }
+  }
+  function drawPanel() {
+    if (!panel) { return; }
+    panel.innerHTML = '<div class=\"deepx-head\"><span class=\"deepx-title\">DeepX</span><button class=\"deepx-refresh\" title=\"刷新状态\">↻</button></div><div class=\"deepx-row\"><span>DeepX</span><span class=\"deepx-app-version\">未检查</span></div><div class=\"deepx-row\"><span>Harness</span><span class=\"deepx-version\">未检查</span></div><div class=\"deepx-row\"><span>插件市场</span><span class=\"deepx-market-version\">未检查</span></div><div class=\"deepx-actions\"></div><div class=\"deepx-track\"><i></i></div><div class=\"deepx-status\"></div>';
+    setProgress(progressValue);
+    setStatus(statusMessage, statusError);
+    applyStatus(updateStatus || { deepx: null, harness: null, marketplace: null });
+    const refreshButton = panel.querySelector('.deepx-refresh');
+    refreshButton.onclick = async function () {
+      if (busy || refreshButton.disabled) { return; }
+      refreshButton.disabled = true;
+      setStatus('正在刷新状态...', false);
+      try { await refreshStatus(); setStatus('状态已刷新', false); }
+      catch (error) { setStatus(String(error), true); }
+      finally { refreshButton.disabled = false; }
+    };
+  }
+  function togglePanel() {
+    if (!invoke) { return; }
+    if (panel) { panel.remove(); panel = null; return; }
+    panel = document.createElement('div');
+    panel.className = 'deepx-panel';
+    document.body.appendChild(panel);
+    drawPanel();
+    refreshStatus().catch(function () {});
+  }
+  function mountToolbar() {
+    if (document.querySelector('.deepx-toolbar')) { return; }
+    const toolbar = document.createElement('header');
+    toolbar.className = 'deepx-toolbar';
+    toolbar.innerHTML = '<div class=\"deepx-toolbar-left\"><button class=\"deepx-page-reload\" title=\"刷新页面\">↻</button><span class=\"deepx-toolbar-name\">DeepX</span><button class=\"deepx-update-toggle\" title=\"更新\">更新</button></div><div class=\"deepx-toolbar-drag\"></div>';
+    document.body.appendChild(toolbar);
+    toolbar.querySelector('.deepx-toolbar-drag').addEventListener('pointerdown', function (event) {
+      if (event.button === 0 && invoke) { invoke('window_action', { action: 'start_dragging' }).catch(function () {}); }
+    });
+    const reloadButton = toolbar.querySelector('.deepx-page-reload');
+    reloadButton.addEventListener('click', function () {
+      if (reloadButton.disabled || !invoke) { return; }
+      reloadButton.disabled = true;
+      invoke('reload_harness').catch(function () { reloadButton.disabled = false; });
+    });
+    toolbar.querySelector('.deepx-update-toggle').addEventListener('click', togglePanel);
+  }
+  if (internals && internals.transformCallback && internals.invoke) {
+    internals.invoke('plugin:event|listen', { event: 'deepx-update-progress', handler: internals.transformCallback(function (payload) {
+      const p = payload || {};
+      if (p.percent != null) { setProgress(p.percent); }
+      if (panel && p.downloaded != null) {
+        setStatus(fmtBytes(p.downloaded) + ' / ' + fmtBytes(p.total) + ' · ' + fmtSpeed(p.speed) + ' · ' + fmtEta(p.total - p.downloaded, p.speed), false);
+      }
+    }) }).catch(function () {});
+    internals.invoke('plugin:event|listen', { event: 'runtime-progress', handler: internals.transformCallback(function (payload) {
+      const p = payload || {};
+      if (p.percentage != null) { setProgress(p.percentage); }
+      if (p.detail != null) { setStatus(String(p.detail), !!(p.error)); }
+    }) }).catch(function () {});
+  }
+  window.__deepxToolbar = { mounted: true, togglePanel: togglePanel };
+  mountToolbar();
+  refreshStatus().catch(function () {});
 })();"###;
 
 mod commands;
@@ -51,20 +197,6 @@ fn activate_main(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
-}
-
-pub(crate) fn open_update_window(app: &AppHandle) -> tauri::Result<()> {
-    if let Some(window) = app.get_webview_window("update") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
-    }
-    WebviewWindowBuilder::new(app, "update", WebviewUrl::App("update.html".into()))
-        .title("DeepX 更新")
-        .inner_size(480.0, 380.0)
-        .resizable(false)
-        .build()
-        .map(|_| ())
 }
 
 pub fn run() {
@@ -102,7 +234,6 @@ pub fn run() {
             commands::update_harness,
             commands::marketplace_status,
             commands::install_marketplace,
-            commands::open_update_window,
         ])
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "显示 DeepX", true, None::<&str>)?;
@@ -123,7 +254,13 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => activate_main(app),
                     "update" => {
-                        let _ = open_update_window(app);
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.eval(
+                                r#"window.__deepxToolbar && window.__deepxToolbar.togglePanel && window.__deepxToolbar.togglePanel()"#,
+                            );
+                        }
                     }
                     "reload" => {
                         if let Some(window) = app.get_webview_window("main") {
