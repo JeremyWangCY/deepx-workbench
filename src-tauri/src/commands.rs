@@ -6,8 +6,12 @@ use crate::{
     write_no_browser_patch,
 };
 use serde::Serialize;
-use std::{fs, process::Command, time::Duration};
-use tauri::{AppHandle, Manager, Url};
+use std::{
+    fs,
+    process::Command,
+    time::{Duration, Instant},
+};
+use tauri::{AppHandle, Emitter, Manager, Url};
 
 #[derive(Debug, Serialize)]
 pub struct RuntimeStatus {
@@ -27,6 +31,15 @@ pub struct UpdateStatus {
     pub deepx: VersionStatus,
     pub harness: VersionStatus,
     pub marketplace: VersionStatus,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct UpdateProgress {
+    pub downloaded: u64,
+    pub total: Option<u64>,
+    pub speed: u64,
+    pub percent: u8,
+    pub detail: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -295,21 +308,85 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
         let installer = cache.join("deepx-workbench-update.exe");
+        let _ = fs::remove_file(&installer);
         emit_progress(&app, 25, format!("正在下载 DeepX {tag}..."));
-        let bytes = client
+        let mut response = client
             .get(asset_url)
             .send()
             .await
             .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
             .error_for_status()
-            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?
-            .bytes()
+            .map_err(|error| format!("下载 DeepX 更新失败: {error}"))?;
+        let total = response.content_length();
+        let mut file = tokio::fs::File::create(&installer)
             .await
-            .map_err(|error| format!("读取 DeepX 更新失败: {error}"))?;
-        if !bytes.starts_with(b"MZ") {
-            return Err("下载的 DeepX 安装包无效".to_string());
+            .map_err(|error| format!("保存 DeepX 更新失败: {error}"))?;
+        let started = Instant::now();
+        let mut last_emit = Instant::now();
+        let mut last_bytes: u64 = 0;
+        let mut downloaded: u64 = 0;
+        let mut speed: u64 = 0;
+        let bytes_per_second = |bytes: u64, since: &mut Instant| -> u64 {
+            let now = Instant::now();
+            let millis = now.duration_since(*since).as_millis().max(1) as u64;
+            *since = now;
+            bytes * 1000 / millis
+        };
+        loop {
+            let chunk = match response.chunk().await {
+                Ok(Some(chunk)) => chunk,
+                Ok(None) => break,
+                Err(error) => {
+                    let _ = fs::remove_file(&installer);
+                    return Err(format!("读取 DeepX 更新失败: {error}"));
+                }
+            };
+            if downloaded == 0 && !chunk.starts_with(b"MZ") {
+                let _ = fs::remove_file(&installer);
+                return Err("下载的 DeepX 安装包无效".to_string());
+            }
+            if let Err(error) = file.write_all(&chunk).await {
+                let _ = fs::remove_file(&installer);
+                return Err(format!("保存 DeepX 更新失败: {error}"));
+            }
+            downloaded += chunk.len() as u64;
+            if started.elapsed().as_millis() > 0 && last_emit.elapsed().as_millis() >= 200 {
+                speed = bytes_per_second(downloaded - last_bytes.min(downloaded), &mut last_emit);
+                last_bytes = downloaded;
+                let percent = match total {
+                    Some(t) if t > 0 => ((downloaded as f64 / t as f64) * 100.0) as u8,
+                    _ => 0,
+                };
+                let _ = app.emit(
+                    "deepx-update-progress",
+                    UpdateProgress {
+                        downloaded,
+                        total,
+                        speed,
+                        percent: percent.min(99),
+                        detail: format!("正在下载 DeepX {tag}"),
+                    },
+                );
+            }
         }
-        fs::write(&installer, &bytes).map_err(|error| format!("保存 DeepX 更新失败: {error}"))?;
+        if let Err(error) = file.flush().await {
+            let _ = fs::remove_file(&installer);
+            return Err(format!("保存 DeepX 更新失败: {error}"));
+        }
+        if let Err(error) = file.sync_all().await {
+            let _ = fs::remove_file(&installer);
+            return Err(format!("保存 DeepX 更新失败: {error}"));
+        }
+        let _ = app.emit(
+            "deepx-update-progress",
+            UpdateProgress {
+                downloaded,
+                total,
+                speed,
+                percent: 100,
+                detail: "下载完成".to_string(),
+            },
+        );
         emit_progress(&app, 90, "正在启动 DeepX 更新安装器...");
         Command::new(&installer)
             .spawn()

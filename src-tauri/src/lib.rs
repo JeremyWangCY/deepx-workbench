@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WindowEvent,
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
 mod commands;
@@ -20,6 +20,20 @@ fn activate_main(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
+}
+
+fn open_update_window(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window("update") {
+        let _ = window.show();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(app, "update", WebviewUrl::App("update.html".into()))
+        .title("DeepX 更新")
+        .inner_size(480.0, 380.0)
+        .resizable(false)
+        .build()
+        .map(|_| ())
 }
 
 pub fn run() {
@@ -52,8 +66,9 @@ pub fn run() {
         .setup(|app| {
             let show = MenuItem::with_id(app, "show", "显示 DeepX", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "刷新页面", true, None::<&str>)?;
+            let update = MenuItem::with_id(app, "update", "更新 DeepX", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 DeepX", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &reload, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &reload, &update, &quit])?;
 
             TrayIconBuilder::with_id("deepx-tray")
                 .icon(
@@ -66,6 +81,9 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => activate_main(app),
+                    "update" => {
+                        let _ = open_update_window(app);
+                    }
                     "reload" => {
                         if let Some(window) = app.get_webview_window("main") {
                             if let Ok(url) = tauri::Url::parse("http://127.0.0.1:3080/") {

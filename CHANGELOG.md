@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.25] - 2026-08-28
+
+### Added
+
+- Dedicated "DeepX 更新" window opened from the tray menu (「更新 DeepX」)
+  showing download progress: progress bar, downloaded/total size and
+  per-second speed (MB/s) while the installer downloads.
+- DeepX updates are now streamed to disk with granular `deepx-update-progress`
+  events instead of buffering the whole installer in memory.
+
 ## [0.1.24] - 2026-08-28
 
 ### Fixed
