@@ -18,6 +18,7 @@
     "allow-launch-harness",
     "allow-show-harness",
     "allow-reload-harness",
+    "allow-open-update-window",
     "allow-update-harness",
     "allow-marketplace-status",
     "allow-install-marketplace"
