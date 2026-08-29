@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   remove-previous-version step and leave the main exe locked when app
   processes were still running, so updates never actually applied; the silent
   flow skips every dialog and replaces the exe cleanly.
+- The injected top toolbar script had a JS syntax error (unterminated string
+  in its CSS line) since 0.1.27, so 刷新 / 更新 never actually rendered on the
+  Harness page; the script was regenerated and is now syntax-verified
+  (`node --check`) before embedding.
 
 ## [0.1.28] - 2026-08-28
 
