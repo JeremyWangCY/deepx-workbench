@@ -390,6 +390,10 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
         );
         emit_progress(&app, 90, "正在启动 DeepX 更新安装器...");
         Command::new(&installer)
+            // /S silent install (skips the remove-previous dialog that hangs
+            // GUI mode when previous installs are half-broken), /R relaunches
+            // the freshly installed app when the install finishes.
+            .args(["/S", "/R"])
             .spawn()
             .map_err(|error| format!("启动 DeepX 更新安装器失败: {error}"))?;
         let app_for_exit = app.clone();
