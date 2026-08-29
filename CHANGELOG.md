@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.29] - 2026-08-29
+
+### Fixed
+
+- In-app 更新 now runs the NSIS installer with `/S /R` (silent install, then
+  relaunch the fresh app). GUI-mode installs could hang on the
+  remove-previous-version step and leave the main exe locked when app
+  processes were still running, so updates never actually applied; the silent
+  flow skips every dialog and replaces the exe cleanly.
+
 ## [0.1.28] - 2026-08-28
 
 ### Changed
