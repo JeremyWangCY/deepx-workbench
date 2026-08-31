@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.33] - 2026-08-31
+
+### Changed
+
+- Slim installer: the full Harness runtime is no longer bundled into the
+  setup exe (it was ~300MB, so every update re-downloaded everything). The
+  runtime is now released as a separate `deepx-runtime-v<version>.zip` asset
+  and only fetched when a machine is missing it; app updates are now a small
+  download. WebView2 switches to a download bootstrapper (only fetched when
+  absent) instead of bundling the full runtime.
+
 ## [0.1.32] - 2026-08-31
 
 ### Fixed
