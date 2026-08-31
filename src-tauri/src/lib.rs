@@ -412,11 +412,8 @@ pub fn run() {
                 .shadow(false)
                 .inner_size(138.0, 40.0)
                 .visible(false)
-                .build(app);
-                match built {
-                    Ok(_) => sync_winbar(&window),
-                    Err(error) => eprintln!("winbar window failed: {error}"),
-                }
+                .build()?;
+                sync_winbar(window.window());
             }
             Ok(())
         })
