@@ -317,7 +317,7 @@ pub fn run() {
             let _ = std::fs::write(
                 "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log",
                 format!(
-                    "{}\t{} | evt={} | label={}\n",
+                    "{:?}\t{} | evt={} | label={}\n",
                     payload.event(),
                     payload.url(),
                     webview.label(),
