@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.40] - 2026-08-31
+
+### Fixed
+
+- use `×` (U+00D7) for the close button glyph; `✕` (U+2715) is not present
+  in the WebView2 font stack and painted nothing.
+
 ## [0.1.39] - 2026-08-31
 
 ### Fixed
