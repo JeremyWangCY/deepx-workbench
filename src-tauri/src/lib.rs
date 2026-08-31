@@ -45,7 +45,7 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
 // pointer-events:none), so any top-fixed plugin UI renders above it and stays
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
-  if (window.location.hash === '#winbar') {
+  if (window.__deepxWinbarMode) {
     try {
       const css2 = 'html,body{margin:0!important;padding:0!important;background:#f8f9fa!important;overflow:hidden!important}.deepx-winbar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:#f8f9fa!important;z-index:2147483647!important}.deepx-win{flex:1 1 0!important;height:100%!important;min-width:0!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}';
       const st = document.createElement('style');
@@ -311,7 +311,15 @@ pub fn run() {
                 && payload.url().host_str() == Some("127.0.0.1")
                 && payload.url().port() == Some(3080)
             {
-                let _ = webview.eval(TOOLBAR_SCRIPT);
+                let script = if webview.label() == "winbar" {
+                    // The page app must not see the #winbar branch: the harness
+                    // scrubs unknown hashes, so the winbar window is flagged
+                    // directly instead of relying on the URL hash.
+                    format!("window.__deepxWinbarMode=true;{TOOLBAR_SCRIPT}")
+                } else {
+                    TOOLBAR_SCRIPT.to_string()
+                };
+                let _ = webview.eval(&script);
             }
         })
         .on_window_event(|window, event| {

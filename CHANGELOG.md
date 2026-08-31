@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.41] - 2026-08-31
+
+### Fixed
+
+- the harness page scrubs unknown URL hashes, so the winbar never saw the
+  `#winbar` branch. The winbar window is now flagged directly from Rust
+  (`window.__deepxWinbarMode=true;`) before the toolbar script runs, so the
+  window controls render regardless of the page URL.
+
 ## [0.1.40] - 2026-08-31
 
 ### Fixed
