@@ -30,10 +30,18 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
         )));
     }
     let _ = winbar.show();
+    let winbar_url = winbar.url().map(|url| url.to_string()).unwrap_or_default();
     let loaded = winbar
         .url()
         .map(|url| url.host_str() == Some("127.0.0.1") && url.port() == Some(3080))
         .unwrap_or(false);
+    let _ = std::fs::write(
+        "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log",
+        format!(
+            "SYNC winbar_url={} loaded={} visible={}\n",
+            winbar_url, loaded, visible
+        ),
+    );
     if !loaded {
         if let Ok(url) = tauri::Url::parse(WINBAR_URL) {
             let _ = winbar.navigate(url);
@@ -306,6 +314,16 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .on_page_load(|webview, payload| {
+            let _ = std::fs::write(
+                "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log",
+                format!(
+                    "{}\t{} | evt={} | label={}\n",
+                    payload.event(),
+                    payload.url(),
+                    webview.label(),
+                    "-"
+                ),
+            );
             if (webview.label() == "main" || webview.label() == "winbar")
                 && payload.event() == PageLoadEvent::Finished
                 && payload.url().host_str() == Some("127.0.0.1")
@@ -319,7 +337,11 @@ pub fn run() {
                 } else {
                     TOOLBAR_SCRIPT.to_string()
                 };
-                let _ = webview.eval(&script);
+                let result = webview.eval(&script);
+                let _ = std::fs::write(
+                    "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log",
+                    format!("EVAL label={} result={:?}\n", webview.label(), result),
+                );
             }
         })
         .on_window_event(|window, event| {
