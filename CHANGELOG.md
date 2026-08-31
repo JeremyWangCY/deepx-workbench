@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.37] - 2026-08-31
+
+### Fixed
+
+- winbar window builds with the correct Tauri v2 API (`build()` takes no
+  manager argument; sync through the inner Window handle).
+
 ## [0.1.36] - 2026-08-31
 
 ### Fixed
