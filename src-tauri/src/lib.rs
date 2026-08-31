@@ -38,11 +38,13 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
     let mut log = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
+        .truncate(false)
         .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
         .unwrap_or_else(|_| {
             std::fs::OpenOptions::new()
                 .write(true)
                 .create(true)
+                .truncate(false)
                 .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
                 .expect("log")
         });
@@ -327,8 +329,16 @@ pub fn run() {
             let mut log = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
+                .truncate(false)
                 .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
-                .unwrap_or_else(|_| std::fs::OpenOptions::new().write(true).create(true).open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log").expect("log"));
+                .unwrap_or_else(|_| {
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(false)
+                        .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
+                        .expect("log")
+                });
             use std::io::Write as _;
             let _ = writeln!(
                 log,
