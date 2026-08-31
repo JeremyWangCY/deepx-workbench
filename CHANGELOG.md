@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.39] - 2026-08-31
+
+### Fixed
+
+- drop the unused `built` binding left over from the winbar builder rework.
+
 ## [0.1.38] - 2026-08-31
 
 ### Fixed
