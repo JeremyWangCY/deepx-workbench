@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.31] - 2026-08-30
+
+### Fixed
+
+- Window control buttons (minimize/maximize/close) on the custom titlebar
+  were hidden under the Harness page's own top chrome (its panel tabs render
+  in the plugin layer above the titlebar). Moved them to the left side of the
+  titlebar where nothing overlaps, so they stay visible and clickable.
+
 ## [0.1.30] - 2026-08-30
 
 ### Changed
