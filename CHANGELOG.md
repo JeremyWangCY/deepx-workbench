@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.32] - 2026-08-31
+
+### Fixed
+
+- The Harness page's own top chrome (panel tabs / session status) rendered in
+  the plugin layer above the titlebar, hiding the window controls and making
+  the window impossible to close. The injected script now offsets every fixed
+  top-pinned element of the Harness UI down by 40px, so the sidebar and all
+  content start below the titlebar; window buttons (minimize/maximize/close)
+  are back at the standard top-right corner and always visible/clickable.
+
 ## [0.1.31] - 2026-08-30
 
 ### Fixed
