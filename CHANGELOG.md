@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.30] - 2026-08-30
+
+### Changed
+
+- The window is now undecorated (`decorations: false`): 刷新 / 更新 / 应用名 /
+  最小化 / 最大化 / 关闭 全部放进第一行顶栏（自绘标题栏），一行完成所有
+  窗口操作。标题栏 z-index 仍在插件宿主层之下，任何置顶插件都不会被遮住。
+
 ## [0.1.29] - 2026-08-29
 
 ### Fixed
