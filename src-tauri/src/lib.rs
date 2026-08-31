@@ -2,8 +2,7 @@ use tauri::{
     menu::{Menu, MenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
     webview::PageLoadEvent,
-    AppHandle, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder, Window,
-    WindowEvent,
+    AppHandle, Manager, PhysicalPosition, Position, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 
 const WINBAR_URL: &str = "http://127.0.0.1:3080/#winbar";
@@ -11,7 +10,7 @@ const WINBAR_URL: &str = "http://127.0.0.1:3080/#winbar";
 // The page-level WebView is unreliable at painting right-anchored UI in some
 // environments, so the window controls live in their own tiny native window
 // (OS-composited) docked to the top-right of the main window.
-fn sync_winbar(main: &Window) {
+fn sync_winbar(main: &tauri::WebviewWindow) {
     let app = main.app_handle();
     let Some(winbar) = app.get_webview_window("winbar") else {
         return;
@@ -321,7 +320,9 @@ pub fn run() {
                     WindowEvent::Moved(_)
                     | WindowEvent::Resized(_)
                     | WindowEvent::ScaleFactorChanged { .. } => {
-                        sync_winbar(window);
+                        if let Some(main) = window.app_handle().get_webview_window("main") {
+                            sync_winbar(&main);
+                        }
                     }
                     WindowEvent::CloseRequested { api, .. } => {
                         if let Some(winbar) = window.app_handle().get_webview_window("winbar") {
@@ -413,7 +414,7 @@ pub fn run() {
                 .inner_size(138.0, 40.0)
                 .visible(false)
                 .build()?;
-                sync_winbar(window.window());
+                sync_winbar(&window);
             }
             Ok(())
         })
