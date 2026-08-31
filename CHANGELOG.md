@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.44] - 2026-08-31
+
+### Fixed
+
+- append (not overwrite) the diagnostic log so the full page-load trace survives.
+- evaluate the toolbar script in the winbar on any finished load (no URL
+  filter), covering harness hash/URL rewrites that previously skipped the eval.
+
 ## [0.1.43] - 2026-08-31
 
 ### Fixed
