@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.35] - 2026-08-31
+
+### Fixed
+
+- Window controls are now rendered in their own right-pinned bar
+  (`deepx-winbar`) with `!important` layout rules, instead of relying on
+  the toolbar's flex row. The bar is re-appended to the end of the document
+  whenever the Harness UI re-renders, so minimize/maximize/close stay
+  visible and clickable regardless of page styles.
+
 ## [0.1.34] - 2026-08-31
 
 ### Fixed
