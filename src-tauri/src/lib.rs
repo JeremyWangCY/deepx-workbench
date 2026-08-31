@@ -399,7 +399,7 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
-                let built = WebviewWindowBuilder::new(
+                WebviewWindowBuilder::new(
                     app,
                     "winbar",
                     WebviewUrl::External(tauri::Url::parse(WINBAR_URL).expect("winbar url")),
