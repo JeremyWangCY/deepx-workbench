@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.46] - 2026-08-31
+
+### Changed
+
+- temporary: give the winbar buttons distinct solid backgrounds so the app's
+  real button layout can be probed by pixel capture while diagnosing why only
+  two glyphs paint.
+
 ## [0.1.45] - 2026-08-31
 
 ### Fixed
