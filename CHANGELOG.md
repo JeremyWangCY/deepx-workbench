@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.34] - 2026-08-31
+
+### Fixed
+
+- The Harness page draws its own right-anchored top chrome at z25, which
+  covered the titlebar's window controls (minimize/maximize/close) even
+  after the 40px offset. The toolbar now sits at the top z-index, so the
+  controls are always visible and clickable; a MutationObserver keeps
+  re-applying the 40px offset when the Harness UI re-renders, so the
+  sidebar and content stay below the titlebar.
+
 ## [0.1.33] - 2026-08-31
 
 ### Changed
