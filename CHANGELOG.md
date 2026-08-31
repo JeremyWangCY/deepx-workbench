@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.36] - 2026-08-31
+
+### Fixed
+
+- Window controls (minimize/maximize/close) now live in their own small native
+  window (`winbar`) docked to the top-right of the main window. The window is
+  OS-composited and follows the main window on move/resize and hides with it,
+  so the controls stay visible and clickable even where the embedded WebView
+  fails to paint right-anchored page UI.
+
 ## [0.1.35] - 2026-08-31
 
 ### Fixed
