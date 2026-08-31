@@ -53,7 +53,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       document.head.appendChild(st);
       const d = document.createElement('div');
       d.className = 'deepx-winbar';
-      d.innerHTML = '<button class="deepx-win deepx-win-min" title="最小化">─</button><button class="deepx-win deepx-win-max" title="最大化">□</button><button class="deepx-win deepx-win-close" title="关闭">✕</button>';
+      d.innerHTML = '<button class="deepx-win deepx-win-min" title="最小化">─</button><button class="deepx-win deepx-win-max" title="最大化">□</button><button class="deepx-win deepx-win-close" title="关闭">×</button>';
       document.body.appendChild(d);
       const inv = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke ? window.__TAURI_INTERNALS__.invoke.bind(window.__TAURI_INTERNALS__) : null;
       const act = function (a) { if (inv) { inv('window_action', { action: a }).catch(function () {}); } };
