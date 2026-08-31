@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.48] - 2026-08-31
+
+### Fixed
+
+- pin the winbar webview zoom to 1.0: WebView2 paints the tiny window at
+  ~1.24x, overflowing 138 CSS px into ~171 physical px and clipping the close
+  button. With CSS px == physical px all three window controls fit.
+- grant `core:window:allow-set-size`/`allow-set-position` so the winbar can
+  resize and re-dock at runtime.
+
 ## [0.1.47] - 2026-08-31
 
 ### Fixed
