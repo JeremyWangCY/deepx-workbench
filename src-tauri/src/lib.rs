@@ -470,6 +470,10 @@ pub fn run() {
                 .inner_size(138.0, 40.0)
                 .visible(false)
                 .build()?;
+                // The WebView2 paints this window at a zoomed scale (~1.24x),
+                // which overflows the tiny HWND and clips the third button.
+                // Pin the zoom to 1.0 so CSS px == physical px.
+                let _ = window.set_zoom(1.0);
                 sync_winbar(&window);
             }
             Ok(())
