@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Progress {
@@ -289,7 +290,10 @@ pub(crate) fn seed_bundled_marketplace(app: &AppHandle) -> Result<bool, String> 
     if destination.join("package.json").is_file() {
         return Ok(false);
     }
-    let source = bundled_runtime_dir(app)?.join("marketplace-profile");
+    let source = match bundled_runtime_dir(app) {
+        Ok(dir) => dir.join("marketplace-profile"),
+        Err(_) => runtime_dir(app).join("marketplace-profile"),
+    };
     if !source.is_dir() {
         return Ok(false);
     }
@@ -356,21 +360,115 @@ pub(crate) async fn install_runtime(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let source = bundled_runtime_dir(&app)?;
-    let destination = runtime_dir(&app);
-    emit_progress(&app, 12, "正在安装...");
-    tauri::async_runtime::spawn_blocking(move || {
-        if destination.exists() {
-            fs::remove_dir_all(&destination).map_err(|error| error.to_string())?;
+    match bundled_runtime_dir(&app) {
+        Ok(source) => {
+            let destination = runtime_dir(&app);
+            emit_progress(&app, 12, "正在安装...");
+            tauri::async_runtime::spawn_blocking(move || {
+                if destination.exists() {
+                    fs::remove_dir_all(&destination).map_err(|error| error.to_string())?;
+                }
+                copy_directory(&source, &destination)
+            })
+            .await
+            .map_err(|error| format!("内置运行时复制任务异常: {error}"))??;
         }
-        copy_directory(&source, &destination)
-    })
-    .await
-    .map_err(|error| format!("内置运行时复制任务异常: {error}"))??;
+        Err(_) => {
+            download_runtime_archive(&app).await?;
+        }
+    }
+
     if !valid_runtime(&app) {
-        return Err("内置 DeepSeek Harness 运行时不完整，请重新下载安装包".to_string());
+        return Err("内置DeepSeek Harness 运行时不完整，请重新下载安装包".to_string());
     }
     emit_progress(&app, 90, "安装完成");
+    Ok(())
+}
+
+async fn download_runtime_archive(app: &AppHandle) -> Result<(), String> {
+    let version = app.package_info().version.to_string();
+    let asset = format!("deepx-runtime-v{version}.zip");
+    let url = format!(
+        "https://github.com/JeremyWangCY/deepx-workbench/releases/download/v{version}/{asset}"
+    );
+    let cache = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?;
+    fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
+    let archive = cache.join(&asset);
+    let _ = fs::remove_file(&archive);
+
+    emit_progress(
+        app,
+        15,
+        format!("正在下载 DeepSeek Harness 运行时 v{version}..."),
+    );
+    let client = reqwest::Client::new();
+    let mut response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?;
+    let total = response.content_length();
+
+    let mut file = tokio::fs::File::create(&archive)
+        .await
+        .map_err(|error| format!("创建运行时缓存失败: {error}"))?;
+    let mut downloaded: u64 = 0;
+    let mut last_emit = Instant::now();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?
+    {
+        downloaded += chunk.len() as u64;
+        file.write_all(&chunk)
+            .await
+            .map_err(|error| format!("写入运行时缓存失败: {error}"))?;
+        if last_emit.elapsed().as_millis() >= 300 {
+            last_emit = Instant::now();
+            let percent = total
+                .map(|t| {
+                    if t == 0 {
+                        15
+                    } else {
+                        (15.0 + (downloaded as f64 / t as f64) * 55.0).min(70.0) as u8
+                    }
+                })
+                .unwrap_or(20);
+            emit_progress(
+                app,
+                percent,
+                format!("正在下载 DeepSeek Harness 运行时 v{version}..."),
+            );
+        }
+    }
+    file.flush().await.map_err(|error| error.to_string())?;
+    drop(file);
+
+    let destination = runtime_dir(app);
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?;
+    emit_progress(app, 74, "正在解压运行时...");
+    if destination.exists() {
+        fs::remove_dir_all(&destination).map_err(|error| error.to_string())?;
+    }
+    let status = std::process::Command::new("tar")
+        .arg("-xf")
+        .arg(&archive)
+        .arg("-C")
+        .arg(&app_data)
+        .status()
+        .map_err(|error| format!("解压 Harness 运行时失败: {error}"))?;
+    if !status.success() {
+        return Err("解压 Harness 运行时失败".to_string());
+    }
+    emit_progress(app, 88, "运行时就绪");
     Ok(())
 }
 
