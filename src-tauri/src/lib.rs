@@ -10,7 +10,7 @@ use tauri::{
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (window.__deepxToolbar && window.__deepxToolbar.mounted) { return; }
-  const css = '.deepx-toolbar{position:fixed;top:0;left:0;right:0;height:40px;z-index:2147483647;display:flex;align-items:center;background:#f8f9fa;border-bottom:1px solid #e4e7eb;color:#202124;font:13px Segoe UI,system-ui,sans-serif;user-select:none}.deepx-toolbar-left{height:100%;display:flex;align-items:center;gap:4px;padding-left:8px}.deepx-toolbar-name{padding:0 8px;color:#5f6368;font-weight:600}.deepx-toolbar-drag{height:100%;flex:1;min-width:40px}.deepx-toolbar-right{height:100%;display:flex;align-items:stretch}.deepx-page-reload,.deepx-update-toggle{height:100%;border:0;border-radius:6px;background:transparent;color:#68717d;cursor:pointer;font:13px Segoe UI,system-ui,sans-serif}.deepx-page-reload{width:36px;font-size:20px}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1;color:#202124}.deepx-page-reload:disabled{opacity:.4;cursor:default}.deepx-update-toggle{padding:0 12px}.deepx-win{width:46px;height:100%;border:0;background:transparent;color:#68717d;cursor:pointer;font:12px Segoe UI,system-ui,sans-serif;line-height:1}.deepx-win:hover{background:#e9edf1;color:#202124}.deepx-win-close:hover{background:#e81123;color:#fff}.deepx-panel{position:fixed;top:48px;left:8px;width:min(360px,calc(100vw - 24px));padding:12px;border:1px solid #dfe3e8;border-radius:8px;background:#fff;box-shadow:0 10px 28px rgba(0,0,0,.19);z-index:2147483646;font:13px Segoe UI,system-ui,sans-serif;color:#202124}.deepx-head{display:flex;align-items:center;justify-content:space-between}.deepx-title{font-weight:650}.deepx-refresh{width:24px;height:24px;padding:0;border:1px solid #dfe3e8;border-radius:5px;background:#fff;color:#5f6368;cursor:pointer;font-size:12px;line-height:1}.deepx-refresh:hover{color:#366cf6;border-color:#b9cbfa}.deepx-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;color:#5f6368}.deepx-btn{width:100%;margin-top:8px;padding:7px;border:0;border-radius:5px;background:#366cf6;color:#fff;cursor:pointer}.deepx-btn:disabled{opacity:.55;cursor:not-allowed}.deepx-track{height:5px;margin-top:9px;background:#e9edf2;border-radius:3px;overflow:hidden}.deepx-track i{display:block;height:100%;background:#366cf6;width:0;transition:width .2s}.deepx-status{color:#5f6368;font-size:11px;line-height:1.5;margin-top:6px;min-height:18px}.deepx-error{color:#c23d3d}html{padding-top:40px!important;box-sizing:border-box!important}';
+  const css = '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}.deepx-page-reload,.deepx-update-toggle{height:100%!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-page-reload{width:36px!important;font-size:20px!important}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle{padding:0 12px!important}.deepx-winbar{position:fixed!important;top:0!important;right:0!important;height:40px!important;width:138px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:transparent!important}.deepx-win{width:46px!important;height:100%!important;border:0!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:12px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}.deepx-panel{position:fixed!important;top:48px!important;left:8px!important;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important}.deepx-title{font-weight:650!important}.deepx-refresh{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:12px!important;line-height:1!important}.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html{padding-top:40px!important;box-sizing:border-box!important}';
   const style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
@@ -24,6 +24,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   let updateStatus = null;
   let statusRequest = null;
   let toolbar = null;
+  let winbar = null;
   function win(action) { if (invoke) { invoke('window_action', { action: action }).catch(function () {}); } }
   function fmtBytes(n) {
     if (n == null) { return '--'; }
@@ -153,7 +154,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     let changed = false;
     for (let i = 0; i < all.length; i++) {
       const el = all[i];
-      if (el === toolbar || toolbar.contains(el) || panel && panel.contains(el)) { continue; }
+      if (el === toolbar || toolbar.contains(el) || winbar && (el === winbar || winbar.contains(el)) || panel && panel.contains(el)) { continue; }
       const cs = getComputedStyle(el);
       if (cs.position !== 'fixed') { continue; }
       const r = el.getBoundingClientRect();
@@ -166,6 +167,12 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       changed = true;
     }
     return changed;
+  }
+  function keepOnTop() {
+    if (!toolbar || !toolbar.parentNode) { return; }
+    const body = document.body;
+    if (body && body.lastElementChild !== toolbar) { body.appendChild(toolbar); }
+    if (winbar && body && body.lastElementChild !== winbar) { body.appendChild(winbar); }
   }
   function startFitting() {
     let tries = 0;
@@ -181,17 +188,22 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     const observer = new MutationObserver(function () {
       if (pending) { return; }
       pending = true;
-      setTimeout(function () { pending = false; fitHarnessBelowTitlebar(); }, 400);
+      setTimeout(function () { pending = false; fitHarnessBelowTitlebar(); keepOnTop(); }, 400);
     });
     const root = document.documentElement || document.body;
-    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    if (root) { observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] }); }
   }
   function mountToolbar() {
-    if (document.querySelector('.deepx-toolbar')) { return; }
+    if (toolbar || document.querySelector('.deepx-toolbar')) { return; }
     toolbar = document.createElement('header');
     toolbar.className = 'deepx-toolbar';
-    toolbar.innerHTML = '<div class="deepx-toolbar-left"><span class="deepx-toolbar-name">DeepX Workbench</span><button class="deepx-page-reload" title="刷新">↻</button><button class="deepx-update-toggle" title="更新">更新</button></div><div class="deepx-toolbar-drag"></div><div class="deepx-toolbar-right"><button class="deepx-win deepx-win-min" title="最小化">─</button><button class="deepx-win deepx-win-max" title="最大化">□</button><button class="deepx-win deepx-win-close" title="关闭">✕</button></div>';
+    toolbar.setAttribute('data-deepx-tb', '1');
+    toolbar.innerHTML = '<div class="deepx-toolbar-left"><span class="deepx-toolbar-name">DeepX Workbench</span><button class="deepx-page-reload" title="刷新">↻</button><button class="deepx-update-toggle" title="更新">更新</button></div><div class="deepx-toolbar-drag"></div>';
     document.body.appendChild(toolbar);
+    winbar = document.createElement('div');
+    winbar.className = 'deepx-winbar';
+    winbar.innerHTML = '<button class="deepx-win deepx-win-min" title="最小化">─</button><button class="deepx-win deepx-win-max" title="最大化">□</button><button class="deepx-win deepx-win-close" title="关闭">✕</button>';
+    document.body.appendChild(winbar);
     const drag = toolbar.querySelector('.deepx-toolbar-drag');
     drag.addEventListener('pointerdown', function (event) {
       if (event.button === 0 && invoke) { invoke('window_action', { action: 'start_dragging' }).catch(function () {}); }
@@ -204,9 +216,9 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       invoke('reload_harness').catch(function () { reloadButton.disabled = false; });
     });
     toolbar.querySelector('.deepx-update-toggle').addEventListener('click', togglePanel);
-    toolbar.querySelector('.deepx-win-min').addEventListener('click', function () { win('minimize'); });
-    toolbar.querySelector('.deepx-win-max').addEventListener('click', function () { win('toggle_maximize'); });
-    toolbar.querySelector('.deepx-win-close').addEventListener('click', function () { win('close'); });
+    winbar.querySelector('.deepx-win-min').addEventListener('click', function () { win('minimize'); });
+    winbar.querySelector('.deepx-win-max').addEventListener('click', function () { win('toggle_maximize'); });
+    winbar.querySelector('.deepx-win-close').addEventListener('click', function () { win('close'); });
     startFitting();
   }
   if (internals && internals.transformCallback && internals.invoke) {
@@ -225,6 +237,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   window.__deepxToolbar = { mounted: true, togglePanel: togglePanel };
   mountToolbar();
+  keepOnTop();
   refreshStatus().catch(function () {});
 })();"###;
 
