@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.43] - 2026-08-31
+
+### Fixed
+
+- use `{:?}` for the diagnostic page-load log (PageLoadEvent has no Display).
+
 ## [0.1.42] - 2026-08-31
 
 ### Added
