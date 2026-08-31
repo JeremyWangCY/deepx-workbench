@@ -11,7 +11,7 @@ use std::{
     process::Command,
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Url};
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Serialize)]
@@ -76,6 +76,29 @@ pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
         _ => return Err(format!("不支持的窗口操作: {action}")),
     };
     result.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_winbar_size(app: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    let winbar = app
+        .get_webview_window("winbar")
+        .ok_or_else(|| "winbar 不存在".to_string())?;
+    let main = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    winbar
+        .set_size(PhysicalSize::new(width as u32, height as u32))
+        .map_err(|error| error.to_string())?;
+    // Re-dock to the main window's top-right using the winbar's new width.
+    if let (Ok(pos), Ok(size)) = (main.outer_position(), main.outer_size()) {
+        let width_px = width as i32;
+        let _ = winbar.set_position(Position::Physical(PhysicalPosition::new(
+            pos.x + size.width as i32 - width_px,
+            pos.y,
+        )));
+    }
+    let _ = winbar.show();
+    Ok(())
 }
 
 #[tauri::command]

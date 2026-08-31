@@ -22,8 +22,8 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
         return;
     }
     if let (Ok(pos), Ok(size)) = (main.outer_position(), main.outer_size()) {
-        let scale = main.scale_factor().unwrap_or(1.0);
-        let width_px = (138.0 * scale) as i32;
+        let winbar_size = winbar.outer_size().unwrap_or_default();
+        let width_px = winbar_size.width as i32;
         let _ = winbar.set_position(Position::Physical(PhysicalPosition::new(
             pos.x + size.width as i32 - width_px,
             pos.y,
@@ -67,19 +67,22 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (window.__deepxWinbarMode) {
     try {
-      const css2 = 'html,body{margin:0!important;padding:0!important;background:#f8f9fa!important;overflow:hidden!important}.deepx-winbar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:#f8f9fa!important;z-index:2147483647!important}.deepx-win{flex:1 1 0!important;height:100%!important;min-width:0!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win-min{background:#e74c3c!important}.deepx-win-max{background:#2ecc71!important}.deepx-win-close{background:#3498db!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}';
+      const css2 = 'html,body{margin:0!important;padding:0!important;background:#f8f9fa!important;overflow:hidden!important}.deepx-winbar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:#f8f9fa!important;z-index:2147483647!important}.deepx-win{flex:1 1 0!important;height:100%!important;min-width:0!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}';
       const st = document.createElement('style');
       st.textContent = css2;
       document.head.appendChild(st);
       const d = document.createElement('div');
       d.className = 'deepx-winbar';
-      d.innerHTML = '<button class="deepx-win deepx-win-min" title="最小化">─</button><button class="deepx-win deepx-win-max" title="最大化">□</button><button class="deepx-win deepx-win-close" title="关闭">×</button>';
+      d.innerHTML = '<button class="deepx-win deepx-win-min" title="最小化">—</button><button class="deepx-win deepx-win-max" title="最大化">O</button><button class="deepx-win deepx-win-close" title="关闭">X</button>';
       document.body.appendChild(d);
       const inv = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke ? window.__TAURI_INTERNALS__.invoke.bind(window.__TAURI_INTERNALS__) : null;
       const act = function (a) { if (inv) { inv('window_action', { action: a }).catch(function () {}); } };
       d.querySelector('.deepx-win-min').addEventListener('click', function () { act('minimize'); });
       d.querySelector('.deepx-win-max').addEventListener('click', function () { act('toggle_maximize'); });
       d.querySelector('.deepx-win-close').addEventListener('click', function () { act('close'); });
+      var fit = function () { var w = Math.ceil((window.innerWidth || 138) * (window.devicePixelRatio || 1)); var h = Math.ceil((window.innerHeight || 40) * (window.devicePixelRatio || 1)); if (inv) { inv('set_winbar_size', { width: w, height: h }).catch(function () {}); } };
+      setTimeout(fit, 300);
+      setTimeout(fit, 1200);
       window.__deepxWinbar = { mounted: true };
     } catch (error) { /* winbar best effort */ }
     return;
@@ -389,6 +392,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::window_action,
+            commands::set_winbar_size,
             commands::runtime_status,
             commands::update_status,
             commands::launch_harness,

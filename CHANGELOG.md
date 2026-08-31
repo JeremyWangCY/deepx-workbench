@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.47] - 2026-08-31
+
+### Fixed
+
+- the winbar webview renders at a viewport wider than its HWND, clipping the
+  close button. The winbar script now measures its real viewport and resizes
+  the window to match (`set_winbar_size` command), and `sync_winbar` docks using
+  the winbar's actual width.
+- use `—` `O` `X` glyphs for the window controls; the box-drawing glyphs are
+  unreliable in the WebView2 font stack.
+
 ## [0.1.46] - 2026-08-31
 
 ### Changed
