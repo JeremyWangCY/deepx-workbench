@@ -1,6 +1,6 @@
 [package]
 name="deepx-workbench"
-version="0.1.50"
+version="0.1.51"
 edition="2021"
 [lib]
 name="deepx_workbench_lib"
@@ -17,4 +17,4 @@ reqwest= {version="0.12",features= ["json"] }
 zip="2"
 tokio= {version="1",features= ["time","fs","io-util"] }
 [target.'cfg(windows)'.dependencies]
-windows= {version="0.58",features= ["Win32_Foundation","Win32_System_Com","Win32_UI_Shell","Win32_UI_Shell_Common"] }
+windows= {version="0.61",features= ["Win32_Foundation","Win32_System_Com","Win32_UI_Shell","Win32_UI_Shell_Common","Win32_UI_HiDpi"] }

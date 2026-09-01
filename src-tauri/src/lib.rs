@@ -10,6 +10,26 @@ const WINBAR_URL: &str = "http://127.0.0.1:3080/#winbar";
 // The page-level WebView is unreliable at painting right-anchored UI in some
 // environments, so the window controls live in their own tiny native window
 // (OS-composited) docked to the top-right of the main window.
+/// The OS display scale for a window: DPI / 96. Tauri's `scale_factor()`
+/// can report 1.0 for a window whose webview is zoomed, so read the real DPI
+/// when we need physical-pixel sizing that must match rendered CSS.
+#[cfg(windows)]
+fn window_dpi_scale(win: &tauri::WebviewWindow) -> Option<f64> {
+    use windows::Win32::UI::HiDpi::GetDpiForWindow;
+    let hwnd = win.hwnd().ok()?;
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    if dpi == 0 {
+        None
+    } else {
+        Some(dpi as f64 / 96.0)
+    }
+}
+
+#[cfg(not(windows))]
+fn window_dpi_scale(win: &tauri::WebviewWindow) -> Option<f64> {
+    win.scale_factor().ok()
+}
+
 fn sync_winbar(main: &tauri::WebviewWindow) {
     let app = main.app_handle();
     let Some(winbar) = app.get_webview_window("winbar") else {
@@ -25,16 +45,21 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
     // begins), not the outer rect: an undecorated maximized window reports
     // outer = (-7,-7) yet its client area (the toolbar) starts at (0,0), so
     // docking to the outer rect would ride the winbar above the top edge.
+    // The injected toolbar row is 41 CSS px (40 content + 1 bottom border,
+    // content-box). The main webview renders it at the OS display scale
+    // (DPI/96), NOT the window scale_factor(), which reports 1.0 here. Read
+    // the real DPI via GetDpiForWindow so the winbar matches the toolbar
+    // row's physical height exactly.
+    let dpi_scale = window_dpi_scale(main).unwrap_or(1.0);
+    let wanted_height = (41.0 * dpi_scale).round() as u32;
+    let mut winbar_width_px = 138u32;
     if let (Ok(pos), Ok(size)) = (main.inner_position(), main.inner_size()) {
         let mut winbar_size = winbar.outer_size().unwrap_or_default();
-        // The injected toolbar row is 40 CSS px tall inside the zoomed main
-        // webview; match its physical height so the winbar reads as part of
-        // the same row instead of a shorter strip floating above it.
-        let wanted_height = (40.0 * main.scale_factor().unwrap_or(1.0)).round() as u32;
         if winbar_size.height != wanted_height {
             let _ = winbar.set_size(tauri::PhysicalSize::new(138u32, wanted_height));
             winbar_size = winbar.outer_size().unwrap_or_default();
         }
+        winbar_width_px = winbar_size.width;
         let width_px = winbar_size.width as i32;
         let _ = winbar.set_position(Position::Physical(PhysicalPosition::new(
             pos.x + size.width as i32 - width_px,
@@ -63,8 +88,8 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
     use std::io::Write as _;
     let _ = writeln!(
         log,
-        "SYNC winbar_url={} loaded={} visible={}",
-        winbar_url, loaded, visible
+        "SYNC dpi_scale={:.2} height={} width={} loaded={} visible={} winbar_url={}",
+        dpi_scale, wanted_height, winbar_width_px, loaded, visible, winbar_url
     );
     if !loaded {
         if let Ok(url) = tauri::Url::parse(WINBAR_URL) {
@@ -100,7 +125,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     return;
   }
   if (window.__deepxToolbar && window.__deepxToolbar.mounted) { return; }
-  const css = '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}.deepx-page-reload,.deepx-update-toggle{height:100%!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-page-reload{width:36px!important;font-size:20px!important}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle{padding:0 12px!important}.deepx-panel{position:fixed!important;top:48px!important;left:8px!important;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important}.deepx-title{font-weight:650!important}.deepx-refresh{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:12px!important;line-height:1!important}.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html{padding-top:40px!important;box-sizing:border-box!important}';
+  const css = '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}.deepx-page-reload,.deepx-update-toggle{height:100%!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-page-reload{width:36px!important;font-size:20px!important}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle{padding:0 12px!important}.deepx-panel{position:fixed!important;top:48px!important;left:8px!important;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important}.deepx-title{font-weight:650!important}.deepx-refresh{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!... (line truncated to 2000 chars)
   const style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
