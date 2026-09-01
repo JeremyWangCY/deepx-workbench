@@ -90,7 +90,10 @@ pub fn set_winbar_size(app: AppHandle, width: f64, height: f64) -> Result<(), St
         .set_size(PhysicalSize::new(width as u32, height as u32))
         .map_err(|error| error.to_string())?;
     // Re-dock to the main window's top-right using the winbar's new width.
-    if let (Ok(pos), Ok(size)) = (main.outer_position(), main.outer_size()) {
+    // Dock against the CLIENT origin (where the toolbar row begins), not the
+    // outer rect, so a maximized main window (outer y=-7, client y=0) does not
+    // push the winbar above the visible toolbar.
+    if let (Ok(pos), Ok(size)) = (main.inner_position(), main.inner_size()) {
         let width_px = width as i32;
         let _ = winbar.set_position(Position::Physical(PhysicalPosition::new(
             pos.x + size.width as i32 - width_px,

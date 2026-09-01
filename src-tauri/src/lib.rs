@@ -21,8 +21,20 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
         let _ = winbar.hide();
         return;
     }
-    if let (Ok(pos), Ok(size)) = (main.outer_position(), main.outer_size()) {
-        let winbar_size = winbar.outer_size().unwrap_or_default();
+    // Dock to the window CLIENT origin (where the injected toolbar row
+    // begins), not the outer rect: an undecorated maximized window reports
+    // outer = (-7,-7) yet its client area (the toolbar) starts at (0,0), so
+    // docking to the outer rect would ride the winbar above the top edge.
+    if let (Ok(pos), Ok(size)) = (main.inner_position(), main.inner_size()) {
+        let mut winbar_size = winbar.outer_size().unwrap_or_default();
+        // The injected toolbar row is 40 CSS px tall inside the zoomed main
+        // webview; match its physical height so the winbar reads as part of
+        // the same row instead of a shorter strip floating above it.
+        let wanted_height = (40.0 * main.scale_factor().unwrap_or(1.0)).round() as u32;
+        if winbar_size.height != wanted_height {
+            let _ = winbar.set_size(tauri::PhysicalSize::new(138u32, wanted_height));
+            winbar_size = winbar.outer_size().unwrap_or_default();
+        }
         let width_px = winbar_size.width as i32;
         let _ = winbar.set_position(Position::Physical(PhysicalPosition::new(
             pos.x + size.width as i32 - width_px,
@@ -67,7 +79,7 @@ fn sync_winbar(main: &tauri::WebviewWindow) {
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (window.__deepxWinbarMode) {
     try {
-      const css2 = 'html,body{margin:0!important;padding:0!important;background:#f8f9fa!important;overflow:hidden!important}.deepx-winbar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:#f8f9fa!important;z-index:2147483647!important}.deepx-win{flex:1 1 0!important;height:100%!important;min-width:0!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}';
+      const css2 = 'html,body{margin:0!important;padding:0!important;background:#f8f9fa!important;overflow:hidden!important}.deepx-winbar{position:fixed!important;top:0!important;left:0!important;right:0!important;bottom:0!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;box-sizing:border-box!important;z-index:2147483647!important}.deepx-win{flex:1 1 0!important;height:100%!important;min-width:0!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;line-height:1!important;padding:0!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}';
       const st = document.createElement('style');
       st.textContent = css2;
       document.head.appendChild(st);

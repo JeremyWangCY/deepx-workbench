@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.50] - 2026-09-01
+
+### Fixed
+
+- the winbar window controls no longer float as a short strip above the
+  toolbar: its height now matches the injected toolbar row's physical height
+  (40 CSS px × main scale factor) and it draws the same bottom border, so the
+  two segments read as one continuous top bar instead of a detached pill.
+
 ## [0.1.49] - 2026-09-01
 
 ### Added
