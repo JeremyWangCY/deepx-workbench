@@ -9,6 +9,7 @@ fn main() {
         "show_harness",
         "reload_harness",
         "update_harness",
+        "restart_harness",
         "marketplace_status",
         "install_marketplace",
     ]);
