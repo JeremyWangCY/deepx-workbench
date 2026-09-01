@@ -120,10 +120,22 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       // Rust (sync_winbar) owns the winbar size via GetDpiForWindow; do NOT
       // re-fit from the harness page's innerWidth/innerHeight (that fought the
       // pinned 138x51 and shrank it to the harness content). Just keep the pill
-      // mounted — the harness SPA re-renders after injection and can drop it.
-      new MutationObserver(function () {
-        if (!document.body.contains(d)) { document.body.appendChild(d); }
-      }).observe(document.documentElement, { childList: true, subtree: true });
+      // mounted — the harness SPA re-renders after injection (and may replace
+      // the whole document), which can drop it. Re-assert on an interval so a
+      // replaced document re-mounts the pill; a MutationObserver alone is lost
+      // when documentElement is swapped.
+      var remount = function () {
+        try {
+          if (!document.body) { return; }
+          if (!d.isConnected) {
+            // Ensure our <style>/<buttons> survive a swapped body.
+            if (!document.head.contains(st)) { document.head.appendChild(st); }
+            document.body.appendChild(d);
+          }
+        } catch (e) {}
+      };
+      new MutationObserver(remount).observe(document.documentElement, { childList: true, subtree: true });
+      setInterval(remount, 600);
       window.__deepxWinbar = { mounted: true };
     } catch (error) { /* winbar best effort */ }
     return;

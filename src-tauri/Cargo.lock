@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "deepx-workbench"
-version = "0.1.52"
+version = "0.1.53"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
