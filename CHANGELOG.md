@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.54] - 2026-09-01
+
+### Changed
+
+- Window controls (− O ×) now render **inside** the top toolbar row, on the same line as the refresh (↻) and update buttons, instead of in a separate native window docked at the top-right. The main window is undecorated (decorations false), so its toolbar row is the custom titlebar; the controls belong in-page, wired to the existing window_action command (minimize / toggle_maximize / close). This removes the popping-out / separated-from-the-bar look: the buttons are styled to match the drag area and sit flush in the row.
+
+### Removed
+
+- The separate native winbar window and its machinery: sync_winbar, window_dpi_scale, the WINBAR_URL const, the set_winbar_size command, and the WebviewWindowBuilder that created the winbar. The harness SPA scrubbed the #winbar URL hash and did a cross-document navigation that wiped the injected pill, so a standalone window could never reliably host the controls.
+
 ## [0.1.53] - 2026-09-01
 
 ### Fixed
