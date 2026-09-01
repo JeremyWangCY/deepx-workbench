@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.51] - 2026-09-01
+
+### Fixed
+
+- the winbar height now tracks the real OS display scale via GetDpiForWindow
+  instead of Tauri's scale_factor(), which can report 1.0 for a zoomed webview;
+  this keeps the window-controls row the same physical height as the toolbar it
+  docks into.
+
 ## [0.1.50] - 2026-09-01
 
 ### Fixed
