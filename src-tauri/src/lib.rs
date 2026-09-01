@@ -393,7 +393,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if args.iter().any(|argument| argument == "--restart-harness") {
                 tauri::async_runtime::spawn(async move {
-                    let _ = commands::restart_harness(app).await;
+                    let _ = commands::restart_harness(app.clone()).await;
                 });
             } else {
                 activate_main(app);
