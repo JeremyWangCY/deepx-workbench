@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.53] - 2026-09-01
+
+### Fixed
+
+- Winbar window-controls pill (again): the harness SPA re-renders after the pill is injected and replaces the whole document, which also removed the `MutationObserver` that was meant to keep the pill mounted. The pill is now re-asserted on a short interval that survives a full document swap, so the harness can no longer drop it.
+
 ## [0.1.52] - 2026-09-01
 
 ### Changed
