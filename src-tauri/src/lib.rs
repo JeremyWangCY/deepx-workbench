@@ -322,10 +322,82 @@ fn activate_main(app: &AppHandle) {
     }
 }
 
+// 任务栏图标右键菜单（JumpList Tasks 区）：加「重启 DeepSeek Harness」。
+// 点击时以 --restart-harness 再次启动本程序，由 single-instance 回调路由到
+// 已运行实例执行重启，第二个实例随即退出。
+#[cfg(windows)]
+fn install_taskbar_restart_task() -> Result<(), String> {
+    use windows::core::{w, Interface, PCWSTR};
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED,
+    };
+    use windows::Win32::UI::Shell::Common::{IObjectArray, IObjectCollection};
+    use windows::Win32::UI::Shell::{
+        DestinationList, EnumerableObjectCollection, ICustomDestinationList, IShellLinkW,
+        SetCurrentProcessExplicitAppUserModelID, ShellLink,
+    };
+
+    unsafe {
+        // 必须与任务栏图标使用同一个稳定的 AppUserModelID。
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        SetCurrentProcessExplicitAppUserModelID(PCWSTR(w!("com.jeremy.deepx-workbench").as_ptr()))
+            .map_err(|error| format!("AUMID: {error}"))?;
+
+        let exe = std::env::current_exe().map_err(|error| error.to_string())?;
+        let exe_w: Vec<u16> = exe
+            .to_string_lossy()
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let link: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)
+            .map_err(|error| format!("ShellLink: {error}"))?;
+        link.SetPath(PCWSTR(exe_w.as_ptr()))
+            .map_err(|error| format!("SetPath: {error}"))?;
+        link.SetArguments(PCWSTR(w!("--restart-harness").as_ptr()))
+            .map_err(|error| format!("SetArguments: {error}"))?;
+        link.SetDescription(PCWSTR(w!("重启 DeepSeek Harness").as_ptr()))
+            .map_err(|error| format!("SetDescription: {error}"))?;
+        link.SetIconLocation(PCWSTR(exe_w.as_ptr()), 0)
+            .map_err(|error| format!("SetIconLocation: {error}"))?;
+
+        let collection: IObjectCollection =
+            CoCreateInstance(&EnumerableObjectCollection, None, CLSCTX_INPROC_SERVER)
+                .map_err(|error| format!("Collection: {error}"))?;
+        collection
+            .AddObject(&link)
+            .map_err(|error| format!("AddObject: {error}"))?;
+        let array: IObjectArray = collection
+            .cast()
+            .map_err(|error| format!("Array: {error}"))?;
+
+        let destinations: ICustomDestinationList =
+            CoCreateInstance(&DestinationList, None, CLSCTX_INPROC_SERVER)
+                .map_err(|error| format!("DestList: {error}"))?;
+        let mut max_slots: u32 = 10;
+        destinations
+            .BeginList::<IObjectArray>(&mut max_slots)
+            .map_err(|error| format!("BeginList: {error}"))?;
+        destinations
+            .AddUserTasks(&array)
+            .map_err(|error| format!("AddUserTasks: {error}"))?;
+        destinations
+            .CommitList()
+            .map_err(|error| format!("CommitList: {error}"))?;
+    }
+    Ok(())
+}
+
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            activate_main(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if args.iter().any(|argument| argument == "--restart-harness") {
+                tauri::async_runtime::spawn(async move {
+                    let _ = commands::restart_harness(app).await;
+                });
+            } else {
+                activate_main(app);
+            }
         }))
         .plugin(tauri_plugin_opener::init())
         .on_page_load(|webview, payload| {
@@ -401,15 +473,21 @@ pub fn run() {
             commands::update_deepx,
             commands::initialize_harness,
             commands::update_harness,
+            commands::restart_harness,
             commands::marketplace_status,
             commands::install_marketplace,
         ])
         .setup(|app| {
+            #[cfg(windows)]
+            {
+                let _ = install_taskbar_restart_task();
+            }
             let show = MenuItem::with_id(app, "show", "显示 DeepX", true, None::<&str>)?;
             let reload = MenuItem::with_id(app, "reload", "刷新页面", true, None::<&str>)?;
+            let restart = MenuItem::with_id(app, "restart-harness", "重启 DeepSeek Harness", true, None::<&str>)?;
             let update = MenuItem::with_id(app, "update", "更新 DeepX", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出 DeepX", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &reload, &update, &quit])?;
+            let menu = Menu::with_items(app, &[&show, &reload, &restart, &update, &quit])?;
 
             TrayIconBuilder::with_id("deepx-tray")
                 .icon(
@@ -437,6 +515,12 @@ pub fn run() {
                                 let _ = window.navigate(url);
                             }
                         }
+                    }
+                    "restart-harness" => {
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = commands::restart_harness(handle).await;
+                        });
                     }
                     "quit" => app.exit(0),
                     _ => {}

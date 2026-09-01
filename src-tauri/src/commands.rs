@@ -458,6 +458,15 @@ pub async fn update_harness(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn restart_harness(app: AppHandle) -> Result<(), String> {
+    emit_progress(&app, 15, "正在重启 Harness...");
+    stop_current_harness().await?;
+    emit_progress(&app, 70, "正在启动...");
+    launch_harness(app.clone()).await?;
+    show_harness(app).await
+}
+
+#[tauri::command]
 pub fn marketplace_status(app: AppHandle) -> MarketplaceStatus {
     MarketplaceStatus {
         installed: marketplace_installed(&app),
