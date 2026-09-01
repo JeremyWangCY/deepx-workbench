@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.52] - 2026-09-01
+
+### Changed
+
+- Winbar (window controls − O ×) now renders consistently inside the top toolbar row: removed the JS `fit()` override that shrank the winbar to the harness page's content size (110×41) instead of the pinned 138×51 physical size Rust computes from the real DPI, so the strip matches the toolbar row height and docks flush to the top-right. The pill is also re-asserted via a `MutationObserver` so the harness SPA's post-injection re-render can no longer drop the overlay.
+
 ## [0.1.51] - 2026-09-01
 
 ### Fixed

@@ -117,9 +117,13 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       d.querySelector('.deepx-win-min').addEventListener('click', function () { act('minimize'); });
       d.querySelector('.deepx-win-max').addEventListener('click', function () { act('toggle_maximize'); });
       d.querySelector('.deepx-win-close').addEventListener('click', function () { act('close'); });
-      var fit = function () { var w = Math.ceil((window.innerWidth || 138) * (window.devicePixelRatio || 1)); var h = Math.ceil((window.innerHeight || 40) * (window.devicePixelRatio || 1)); if (inv) { inv('set_winbar_size', { width: w, height: h }).catch(function () {}); } };
-      setTimeout(fit, 300);
-      setTimeout(fit, 1200);
+      // Rust (sync_winbar) owns the winbar size via GetDpiForWindow; do NOT
+      // re-fit from the harness page's innerWidth/innerHeight (that fought the
+      // pinned 138x51 and shrank it to the harness content). Just keep the pill
+      // mounted — the harness SPA re-renders after injection and can drop it.
+      new MutationObserver(function () {
+        if (!document.body.contains(d)) { document.body.appendChild(d); }
+      }).observe(document.documentElement, { childList: true, subtree: true });
       window.__deepxWinbar = { mounted: true };
     } catch (error) { /* winbar best effort */ }
     return;
