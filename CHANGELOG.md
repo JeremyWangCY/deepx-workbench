@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.49] - 2026-09-01
+
+### Added
+
+- 任务栏图标右键菜单（JumpList）新增「重启 DeepSeek Harness」：点击后以
+  `--restart-harness` 再次启动本程序，由 single-instance 回调路由到已运行实例，
+  停止并重新拉起本地 Harness 服务。
+- 托盘图标菜单新增同名「重启 DeepSeek Harness」入口，隐藏到托盘时也能一键重启。
+
 ## [0.1.48] - 2026-08-31
 
 ### Fixed

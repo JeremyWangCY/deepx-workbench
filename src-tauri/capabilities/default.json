@@ -19,6 +19,7 @@
     "allow-initialize-harness",
     "allow-launch-harness",
     "allow-show-harness",
+    "allow-restart-harness",
     "allow-reload-harness",
     "allow-update-harness",
     "allow-marketplace-status",
