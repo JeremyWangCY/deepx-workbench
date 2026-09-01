@@ -166,6 +166,17 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }
     return changed;
   }
+  // The harness is a client-side SPA that renders into #root and can drop our
+  // injected <header> / <style> (or even replace the whole document) after load.
+  // Re-assert the toolbar+style so the window controls stay mounted — this is the
+  // same survival guard the winbar pill used (interval + MutationObserver), since
+  // on_page_load only re-fires on a full navigation, not on SPA re-renders.
+  function remount() {
+    try {
+      if (style && !style.isConnected && document.head) { document.head.appendChild(style); }
+      if (toolbar && !toolbar.isConnected && document.body) { document.body.appendChild(toolbar); }
+    } catch (e) { /* best effort */ }
+  }
   function startFitting() {
     let tries = 0;
     const retryFit = function () {
@@ -175,9 +186,12 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       setTimeout(retryFit, 500);
     };
     setTimeout(retryFit, 300);
+    remount();
+    setInterval(remount, 600);
     if (!window.MutationObserver) { return; }
     let pending = false;
     const observer = new MutationObserver(function () {
+      remount();
       if (pending) { return; }
       pending = true;
       setTimeout(function () { pending = false; fitHarnessBelowTitlebar(); }, 400);
