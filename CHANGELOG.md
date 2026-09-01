@@ -5,11 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.56] - 2026-09-01
+
+### Fixed
+
+- The top toolbar (window controls − O ×, refresh ↻, update) never rendered at all: the injected toolbar script contained a JavaScript syntax error. Its CSS string literal lost its closing quote — the line had been truncated at 2 000 characters and a "(line truncated to 2000 chars)" marker was written into the source — so the string swallowed the following line, V8 rejected the whole script with "Invalid or unexpected token", and `mountToolbar()` never ran. `on_page_load` still logged `EVAL result=Ok(())` because `webview.eval` only reports asynchronous dispatch, which masked the failure. The corruption entered in commit 3865246, meaning the toolbar was silently dead across 0.1.52–0.1.55; the 0.1.55 entry below (a suspected SPA re-render wipe) was a wrong diagnosis. The CSS is restored in full from the last known-good revision (bb62f53) with the 0.1.54 window-control rules re-applied, and is now written as several short concatenated string literals so no single over-long line can be truncated again.
+
 ## [0.1.55] - 2026-09-01
 
 ### Fixed
 
-- The injected top toolbar (window controls − O ×, refresh ↻ update) could vanish after launch: the harness is a client-side SPA that renders into #root after load, and its post-injection re-render could drop the toolbar <header>/<style> from the DOM. Unlike the removed winbar pill, the in-page toolbar had no survival guard, so once dropped it stayed gone (on_page_load only re-fires on a full navigation, not on SPA re-renders). The toolbar is now re-asserted on a short interval and on DOM mutations, so the harness can no longer remove the window controls.
+- Superseded by 0.1.56: this release only re-shipped the broken toolbar script with a survival guard added on top. (The SPA re-render wipe described below did not exist — the script never parsed, so nothing was ever mounted for the harness to drop.)
+
+- Original (incorrect) note: the injected top toolbar (window controls − O ×, refresh ↻ update) could vanish after launch: the harness is a client-side SPA that renders into #root after load, and its post-injection re-render could drop the toolbar <header>/<style> from the DOM. Unlike the removed winbar pill, the in-page toolbar had no survival guard, so once dropped it stayed gone (on_page_load only re-fires on a full navigation, not on SPA re-renders). The toolbar is now re-asserted on a short interval and on DOM mutations, so the harness can no longer remove the window controls.
 
 ## [0.1.54] - 2026-09-01
 
