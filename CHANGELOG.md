@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.55] - 2026-09-01
+
+### Fixed
+
+- The injected top toolbar (window controls − O ×, refresh ↻ update) could vanish after launch: the harness is a client-side SPA that renders into #root after load, and its post-injection re-render could drop the toolbar <header>/<style> from the DOM. Unlike the removed winbar pill, the in-page toolbar had no survival guard, so once dropped it stayed gone (on_page_load only re-fires on a full navigation, not on SPA re-renders). The toolbar is now re-asserted on a short interval and on DOM mutations, so the harness can no longer remove the window controls.
+
 ## [0.1.54] - 2026-09-01
 
 ### Changed
