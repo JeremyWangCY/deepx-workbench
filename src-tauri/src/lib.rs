@@ -360,12 +360,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
-                match event {
-                    WindowEvent::CloseRequested { api, .. } => {
-                        let _ = window.hide();
-                        api.prevent_close();
-                    }
-                    _ => {}
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    let _ = window.hide();
+                    api.prevent_close();
                 }
             }
         })
