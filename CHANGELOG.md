@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.59] - 2026-09-01
+
+### Fixed
+
+- The `toolbar_probe` diagnostic command was unreachable from the harness page: the capability file gates every command explicitly and the new command had no permission entry. Added `allow-toolbar-probe` and extended the probe to report from every watchdog branch (healthy / closure-remount / full mount) so field diagnosis sees which path actually runs.
+
 ## [0.1.58] - 2026-09-01
 
 ### Fixed

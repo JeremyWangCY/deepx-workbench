@@ -21,6 +21,7 @@
     "allow-show-harness",
     "allow-restart-harness",
     "allow-reload-harness",
+    "allow-toolbar-probe",
     "allow-update-harness",
     "allow-marketplace-status",
     "allow-install-marketplace"
