@@ -486,8 +486,9 @@ pub fn run() {
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_millis(1600));
                 let handle = toolbar_watchdog.clone();
+                let task = handle.clone();
                 let _ = handle.run_on_main_thread(move || {
-                    if let Some(webview) = handle.get_webview_window("main") {
+                    if let Some(webview) = task.get_webview_window("main") {
                         let _ = webview.eval(TOOLBAR_SCRIPT);
                     }
                 });
