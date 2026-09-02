@@ -12,6 +12,13 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
   const existing = document.querySelector('header.deepx-toolbar[data-deepx-tb]');
   if (existing && existing.isConnected) {
+    try {
+      var pi = getInvoke();
+      var el = document.elementFromPoint(258, 27);
+      var ub = existing.querySelector('.deepx-update-toggle');
+      var diag = JSON.stringify({ h: location.href, in: !!window.__TAURI_INTERNALS__, pi: !!pi, ci: !!invoke, n: document.querySelectorAll('header.deepx-toolbar').length, at: el ? (el.tagName + '|' + (el.className || '') + '|' + String(el.textContent || '').slice(0, 8)) : 'null', dis: ub ? !!ub.disabled : null });
+      if (pi) { pi('toolbar_probe', { diag: diag }).catch(function () {}); }
+    } catch (e) {}
     if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); }
     return;
   }
@@ -32,6 +39,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   document.head.appendChild(style);
   const internals = window.__TAURI_INTERNALS__;
   const invoke = internals && internals.invoke ? internals.invoke.bind(internals) : null;
+  function getInvoke() { var i = window.__TAURI_INTERNALS__; return i && i.invoke ? i.invoke.bind(i) : null; }
   let panel = null;
   let busy = false;
   let progressValue = 0;
@@ -154,7 +162,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     };
   }
   function togglePanel() {
-    if (!invoke) { return; }
+    var ti = getInvoke();
+    if (!ti) { return; }
     if (panel) { panel.remove(); panel = null; return; }
     panel = document.createElement('div');
     panel.className = 'deepx-panel';
@@ -224,14 +233,16 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     document.body.appendChild(toolbar);
     const drag = toolbar.querySelector('.deepx-toolbar-drag');
     drag.addEventListener('pointerdown', function (event) {
-      if (event.button === 0 && invoke) { invoke('window_action', { action: 'start_dragging' }).catch(function () {}); }
+      var di = getInvoke();
+      if (event.button === 0 && di) { di('window_action', { action: 'start_dragging' }).catch(function () {}); }
     });
     drag.addEventListener('dblclick', function () { win('toggle_maximize'); });
     const reloadButton = toolbar.querySelector('.deepx-page-reload');
     reloadButton.addEventListener('click', function () {
-      if (reloadButton.disabled || !invoke) { return; }
+      var ri = getInvoke();
+      if (reloadButton.disabled || !ri) { return; }
       reloadButton.disabled = true;
-      invoke('reload_harness').catch(function () { reloadButton.disabled = false; });
+      ri('reload_harness').catch(function () {}).then(function () { reloadButton.disabled = false; });
     });
     toolbar.querySelector('.deepx-update-toggle').addEventListener('click', togglePanel);
     toolbar.querySelector('.deepx-win-min').addEventListener('click', function () { win('minimize'); });
@@ -239,7 +250,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     toolbar.querySelector('.deepx-win-close').addEventListener('click', function () { win('close'); });
     startFitting();
   }
-  function win(action) { if (invoke) { invoke('window_action', { action: action }).catch(function () {}); } }
+  function win(action) { var wi = getInvoke(); if (wi) { wi('window_action', { action: action }).catch(function () {}); } }
   if (internals && internals.transformCallback && internals.invoke) {
     internals.invoke('plugin:event|listen', { event: 'deepx-update-progress', handler: internals.transformCallback(function (payload) {
       const p = payload || {};
@@ -403,6 +414,7 @@ pub fn run() {
             commands::launch_harness,
             commands::show_harness,
             commands::reload_harness,
+            commands::toolbar_probe,
             commands::update_deepx,
             commands::initialize_harness,
             commands::update_harness,

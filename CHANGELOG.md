@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.58] - 2026-09-01
+
+### Fixed
+
+- Toolbar buttons could go dead (panel, window controls, drag all silent) while the bar itself stayed visible. The IPC handle was captured once at injection time, so a toolbar whose closure missed `__TAURI_INTERNALS__` (or whose internals appeared later) stayed mute forever. All handlers now resolve the IPC binding at click time, and the refresh button no longer stays disabled when the reload command resolves without replacing the document.
+
+### Added
+
+- `toolbar_probe` diagnostic command (inactive without a local flag file) reporting toolbar page state for field diagnosis.
+
 ## [0.1.57] - 2026-09-01
 
 ### Fixed
