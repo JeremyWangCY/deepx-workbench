@@ -9,7 +9,16 @@ use tauri::{
 // pointer-events:none), so any top-fixed plugin UI renders above it and stays
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
-  if (window.__deepxToolbar && window.__deepxToolbar.mounted) { return; }
+  if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
+  const existing = document.querySelector('header.deepx-toolbar[data-deepx-tb]');
+  if (existing && existing.isConnected) {
+    if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); }
+    return;
+  }
+  if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); return; }
+  if (existing) { existing.remove(); }
+  const staleStyle = document.getElementById('deepx-toolbar-style');
+  if (staleStyle) { staleStyle.remove(); }
   const css = ''
     + '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}'
     + '.deepx-page-reload,.deepx-update-toggle{height:100%!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-page-reload{width:36px!important;font-size:20px!important}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle{padding:0 12px!important}.deepx-toolbar-win{height:100%!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;margin-left:6px!important;border-left:1px solid #e4e7eb!important}'
@@ -18,6 +27,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
     + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html{padding-top:40px!important;box-sizing:border-box!important}';
   const style = document.createElement('style');
+  style.id = 'deepx-toolbar-style';
   style.textContent = css;
   document.head.appendChild(style);
   const internals = window.__TAURI_INTERNALS__;
@@ -244,7 +254,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       if (p.detail != null) { setStatus(String(p.detail), !!(p.error)); }
     }) }).catch(function () {});
   }
-  window.__deepxToolbar = { mounted: true, togglePanel: togglePanel };
+  window.__deepxToolbar = { mounted: true, remount: remount, togglePanel: togglePanel };
   mountToolbar();
   refreshStatus().catch(function () {});
 })();"###;
@@ -466,6 +476,22 @@ pub fn run() {
                 // matching the 40px toolbar row that the harness page hosts.
                 let _ = window.set_zoom(1.0);
             }
+            // Toolbar watchdog: re-assert the injected toolbar every ~1.6s.
+            // navigate()-based reloads race the on_page_load injection (the eval
+            // can land in the doomed document, or a later wipe kills the timers),
+            // which made the toolbar vanish after clicking refresh. The script is
+            // idempotent and DOM-guarded, so while healthy this eval is a cheap
+            // no-op, and after any wipe it re-mounts within one tick.
+            let toolbar_watchdog = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_millis(1600));
+                let handle = toolbar_watchdog.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    if let Some(webview) = handle.get_webview_window("main") {
+                        let _ = webview.eval(TOOLBAR_SCRIPT);
+                    }
+                });
+            });
             Ok(())
         })
         .run(tauri::generate_context!())
