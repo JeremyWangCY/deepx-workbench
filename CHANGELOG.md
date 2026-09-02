@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.60] - 2026-09-01
+
+### Fixed
+
+- Dead toolbar buttons after refresh, root-caused with the page-state probe: during a `navigate()` transition the webview can transiently expose a document whose content is the injected script text itself, without Tauri's `__TAURI_INTERNALS__`. A toolbar mounted in that context is permanently deaf (every handler silently returns), yet the old health check only tested whether a toolbar element was connected, so the deaf bar was never replaced. The mount guard now verifies the full health tuple (element connected + owning closure has a working IPC binding + the element is its own + internals resolvable now), tears down every stale toolbar element, and refuses to mount at all while internals are absent — so only a fully wired toolbar can ever exist.
+
 ## [0.1.59] - 2026-09-01
 
 ### Fixed
