@@ -258,6 +258,25 @@ pub async fn reload_harness(app: AppHandle) -> Result<(), String> {
     navigate_to_harness(app).await
 }
 
+/// Diagnostic probe: the toolbar script reports its page state on every
+/// watchdog tick. Writes to the onload log only while the probe flag file
+/// exists, so shipping builds stay silent.
+#[tauri::command]
+pub fn toolbar_probe(diag: String) {
+    let flag = std::path::Path::new("C:\\Users\\Laptop\\AppData\\Local\\deepx-probe.flag");
+    if !flag.exists() {
+        return;
+    }
+    if let Ok(mut log) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
+    {
+        use std::io::Write;
+        let _ = writeln!(log, "PROBE {}", diag);
+    }
+}
+
 #[tauri::command]
 pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
     #[cfg(windows)]
