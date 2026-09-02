@@ -10,25 +10,28 @@ use tauri::{
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
+  var liveInvoke = getInvoke();
   var probe = function (br) {
     try {
-      var pi = getInvoke();
-      var el = document.elementFromPoint(258, 27);
       var tbs = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
-      var diag = JSON.stringify({ br: br, h: location.href.slice(0, 40), in: !!window.__TAURI_INTERNALS__, pi: !!pi, n: tbs.length, conn: tbs.length ? !!tbs[0].isConnected : false, at: el ? (el.tagName + '|' + (el.className || '') + '|' + String(el.textContent || '').slice(0, 8)) : 'null' });
-      if (pi) { pi('toolbar_probe', { diag: diag }).catch(function () {}); }
+      var el = null;
+      if (tbs.length) { var b0 = tbs[0].querySelector('.deepx-update-toggle'); if (b0) { var r = b0.getBoundingClientRect(); el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); } }
+      var diag = JSON.stringify({ br: br, in: !!window.__TAURI_INTERNALS__, pi: !!liveInvoke, n: tbs.length, conn: tbs.length ? !!tbs[0].isConnected : false, own: !!(window.__deepxToolbar && window.__deepxToolbar.toolbar && tbs.length && window.__deepxToolbar.toolbar === tbs[0]), hasI: !!(window.__deepxToolbar && window.__deepxToolbar.hasInvoke), hit: !!(el && tbs.length && tbs[0].contains(el)) });
+      if (liveInvoke) { liveInvoke('toolbar_probe', { diag: diag }).catch(function () {}); }
     } catch (e) {}
   };
   const existing = document.querySelector('header.deepx-toolbar[data-deepx-tb]');
-  if (existing && existing.isConnected) {
+  if (existing && existing.isConnected && window.__deepxToolbar && window.__deepxToolbar.hasInvoke && window.__deepxToolbar.toolbar === existing && liveInvoke) {
     probe(1);
-    if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); }
+    window.__deepxToolbar.remount();
     return;
   }
-  if (window.__deepxToolbar && window.__deepxToolbar.remount) { probe(2); window.__deepxToolbar.remount(); return; }
-  if (existing) { existing.remove(); }
+  if (!liveInvoke) { return; }
+  var stales = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
+  for (var si = 0; si < stales.length; si++) { stales[si].remove(); }
   const staleStyle = document.getElementById('deepx-toolbar-style');
   if (staleStyle) { staleStyle.remove(); }
+  window.__deepxToolbar = null;
   const css = ''
     + '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}'
     + '.deepx-page-reload,.deepx-update-toggle{height:100%!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-page-reload{width:36px!important;font-size:20px!important}.deepx-page-reload:hover,.deepx-update-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle{padding:0 12px!important}.deepx-toolbar-win{height:100%!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;margin-left:6px!important;border-left:1px solid #e4e7eb!important}'
@@ -268,8 +271,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       if (p.detail != null) { setStatus(String(p.detail), !!(p.error)); }
     }) }).catch(function () {});
   }
-  window.__deepxToolbar = { mounted: true, remount: remount, togglePanel: togglePanel };
   mountToolbar();
+  window.__deepxToolbar = { mounted: true, remount: remount, toolbar: toolbar, hasInvoke: !!invoke, togglePanel: togglePanel };
   probe(3);
   refreshStatus().catch(function () {});
 })();"###;
