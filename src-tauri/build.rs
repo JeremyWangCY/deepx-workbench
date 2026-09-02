@@ -12,6 +12,7 @@ fn main() {
         "restart_harness",
         "marketplace_status",
         "install_marketplace",
+        "toolbar_probe",
     ]);
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(app_manifest))
         .expect("failed to run tauri build");
