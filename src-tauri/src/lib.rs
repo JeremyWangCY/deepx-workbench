@@ -10,19 +10,22 @@ use tauri::{
 // clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
-  const existing = document.querySelector('header.deepx-toolbar[data-deepx-tb]');
-  if (existing && existing.isConnected) {
+  var probe = function (br) {
     try {
       var pi = getInvoke();
       var el = document.elementFromPoint(258, 27);
-      var ub = existing.querySelector('.deepx-update-toggle');
-      var diag = JSON.stringify({ h: location.href, in: !!window.__TAURI_INTERNALS__, pi: !!pi, ci: !!invoke, n: document.querySelectorAll('header.deepx-toolbar').length, at: el ? (el.tagName + '|' + (el.className || '') + '|' + String(el.textContent || '').slice(0, 8)) : 'null', dis: ub ? !!ub.disabled : null });
+      var tbs = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
+      var diag = JSON.stringify({ br: br, h: location.href.slice(0, 40), in: !!window.__TAURI_INTERNALS__, pi: !!pi, n: tbs.length, conn: tbs.length ? !!tbs[0].isConnected : false, at: el ? (el.tagName + '|' + (el.className || '') + '|' + String(el.textContent || '').slice(0, 8)) : 'null' });
       if (pi) { pi('toolbar_probe', { diag: diag }).catch(function () {}); }
     } catch (e) {}
+  };
+  const existing = document.querySelector('header.deepx-toolbar[data-deepx-tb]');
+  if (existing && existing.isConnected) {
+    probe(1);
     if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); }
     return;
   }
-  if (window.__deepxToolbar && window.__deepxToolbar.remount) { window.__deepxToolbar.remount(); return; }
+  if (window.__deepxToolbar && window.__deepxToolbar.remount) { probe(2); window.__deepxToolbar.remount(); return; }
   if (existing) { existing.remove(); }
   const staleStyle = document.getElementById('deepx-toolbar-style');
   if (staleStyle) { staleStyle.remove(); }
@@ -267,6 +270,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   window.__deepxToolbar = { mounted: true, remount: remount, togglePanel: togglePanel };
   mountToolbar();
+  probe(3);
   refreshStatus().catch(function () {});
 })();"###;
 
