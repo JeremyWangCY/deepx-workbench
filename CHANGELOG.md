@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.57] - 2026-09-01
+
+### Fixed
+
+- The toolbar could vanish for good after clicking refresh (↻). `reload_harness` performs a full `navigate()` to the harness URL; the re-injection races that navigation — the eval dispatched on `PageLoadEvent::Finished` can execute in the doomed previous document (its mount is destroyed with it) or its timers can be lost to a later in-page wipe, and since the script's entry guard trusted a `window` flag rather than the DOM, a re-eval could never recover it. The script's mount guard is now DOM-based (mount only when no live toolbar element exists; nudge `remount()` otherwise) and a main-thread watchdog in Rust re-evaluates the idempotent script every ~1.6s, so any lost injection or wipe heals within one tick. The script also self-guards on hostname/port, making it safe to evaluate at any time.
+
 ## [0.1.56] - 2026-09-01
 
 ### Fixed
