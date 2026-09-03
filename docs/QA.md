@@ -29,11 +29,13 @@ data folder).
 
 ### Update flow
 
-- The update control is injected live into the Harness page in the lower-left
-  area (above the settings gear), not inside the Harness settings page.
-- It lists the installed vs latest Harness version and runs the update path:
-  stop service -> npm install latest -> relaunch -> navigate back.
-- Progress events are surfaced on the same control (percentage + status text).
+- A top toolbar row (40px, title + refresh + update toggle + window controls)
+  is injected into the Harness page on every page load, with a main-thread
+  watchdog re-asserting it about every 1.6 s.
+- The update toggle opens a panel listing installed vs latest versions for
+  DeepX, Harness, and the marketplace, and runs the update path:
+  stop service -> install latest -> relaunch -> navigate back.
+- Progress events are surfaced in the same panel (percentage + status text).
 - The full stop/install/relaunch cycle was observed in the live window.
 
 ### Marketplace
@@ -44,6 +46,18 @@ data folder).
   --config.minimumReleaseAge=0` -> verify the dependency is recorded in the web
   profile -> report progress.
 - Status is shown inline ("已安装 / 尚未安装").
+
+## 2026-09-03 verification (v0.1.60, synthetic mouse + captures)
+
+- After two consecutive toolbar refresh clicks (real `navigate()` reloads),
+  every toolbar control verified working: refresh fired reloads, the update
+  toggle opened the panel with populated versions (DeepX 0.1.60, Harness
+  0.1.1-rc.2, marketplace 1.40.0), maximize/restore moved the window rect.
+- Page-state probe (flag-gated, silent by default) reported a fully healthy
+  tuple on every tick through the stress: single connected toolbar owned by a
+  closure with a live IPC binding, button hit-test landing inside the bar.
+- Shell footprint: main process ~40 MB WS; Harness node service is the
+  official runtime (~840 MB WS with a warm session, out of our scope).
 
 ## Residual notes
 

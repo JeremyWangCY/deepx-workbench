@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.61] - 2026-09-03
+
+### Fixed
+
+- The page-load diagnostic log grew without bound; it is now capped at ~512 KiB (last 400 lines kept) once per launch.
+
+### Docs
+
+- Rewrote the README as a bilingual pair (`README.md` / `README.zh.md`) with current toolbar + update-panel screenshots, and refreshed the stale QA notes.
+
 ## [0.1.60] - 2026-09-01
 
 ### Fixed

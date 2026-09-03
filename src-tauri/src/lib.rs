@@ -430,6 +430,24 @@ pub fn run() {
             commands::install_marketplace,
         ])
         .setup(|app| {
+            // Cap the page-load diagnostic log so long-term daily use cannot
+            // grow it without bound: past ~512 KiB only the last 400 lines
+            // are kept. Runs once per launch; logging itself is untouched.
+            {
+                const ONLOAD_LOG: &str =
+                    "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log";
+                if let Ok(metadata) = std::fs::metadata(ONLOAD_LOG) {
+                    if metadata.len() > 512 * 1024 {
+                        if let Ok(text) = std::fs::read_to_string(ONLOAD_LOG) {
+                            let lines: Vec<&str> = text.lines().collect();
+                            if lines.len() > 400 {
+                                let tail = lines[lines.len() - 400..].join("\n");
+                                let _ = std::fs::write(ONLOAD_LOG, tail + "\n");
+                            }
+                        }
+                    }
+                }
+            }
             #[cfg(windows)]
             {
                 let _ = install_taskbar_restart_task();
