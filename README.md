@@ -20,33 +20,11 @@ compatibility surface is the official Harness runtime and CLI:
 
 ## What you get
 
-A borderless desktop window that hosts Harness directly, with a native-feeling
-top toolbar injected into the page:
-
-![Top toolbar: title, refresh, update toggle, minimize, maximize, close](assets/screenshots/toolbar.png)
-
-| Control | Action |
-|---|---|
-| `DeepX Workbench` title area (drag) | Move the window (standard drag) |
-| ↻ refresh | Reload the Harness page in place |
-| 更新 (update) | Open the update panel below |
-| — / O / × | Minimize, maximize/restore, hide-to-tray |
-
-The **update panel** checks installed vs latest versions and runs updates on
-demand — DeepX itself, the Harness runtime, and the plugin marketplace:
-
-![Update panel with version rows and install buttons](assets/screenshots/update-panel.png)
-
-- **刷新状态** — recheck current/latest versions for DeepX, Harness, and the
-  marketplace.
-- **更新 Harness** — stop service → install latest → relaunch → navigate back,
-  with inline progress.
-- **安装 / 更新插件市场** — install or update `dshmarket` via the official
-  `dsh plugin` CLI using the bundled pnpm runtime.
-
-A system-tray icon offers show / refresh / restart Harness / update / quit,
-including left-click-to-restore. There is one app instance: launching again
-restores the existing window instead of starting a second copy.
+A borderless desktop window that hosts Harness directly, with a small top
+toolbar: drag-to-move title area, refresh, an update panel for DeepX /
+Harness / marketplace versions with one-click updates, and standard minimize,
+maximize, and hide-to-tray controls. A tray icon offers show / refresh /
+restart / quit, and the app runs as a single instance.
 
 ## Install
 
