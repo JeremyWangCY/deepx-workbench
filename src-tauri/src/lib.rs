@@ -5,9 +5,6 @@ use tauri::{
     AppHandle, Manager, WindowEvent,
 };
 
-// ponytail: toolbar sits at z-index 20, below the plugin host layer (z-index 25,
-// pointer-events:none), so any top-fixed plugin UI renders above it and stays
-// clickable regardless of position; raises to 2147483647 would re-cover plugins.
 const TOOLBAR_SCRIPT: &str = r###"(() => {
   if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
   var liveInvoke = getInvoke();
@@ -27,8 +24,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     return;
   }
   if (!liveInvoke) { return; }
-  var stales = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
-  for (var si = 0; si < stales.length; si++) { stales[si].remove(); }
+  document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]').forEach(function (el) { el.remove(); });
   const staleStyle = document.getElementById('deepx-toolbar-style');
   if (staleStyle) { staleStyle.remove(); }
   window.__deepxToolbar = null;
@@ -197,11 +193,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }
     return changed;
   }
-  // The harness is a client-side SPA that renders into #root and can drop our
-  // injected <header> / <style> (or even replace the whole document) after load.
-  // Re-assert the toolbar+style so the window controls stay mounted — this is the
-  // same survival guard the winbar pill used (interval + MutationObserver), since
-  // on_page_load only re-fires on a full navigation, not on SPA re-renders.
+  // The harness SPA can drop our <header>/<style> after load; on_page_load only
+  // refires on full navigations, so re-assert both on interval + DOM mutations.
   function remount() {
     try {
       if (style && !style.isConnected && document.head) { document.head.appendChild(style); }
@@ -272,7 +265,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }) }).catch(function () {});
   }
   mountToolbar();
-  window.__deepxToolbar = { mounted: true, remount: remount, toolbar: toolbar, hasInvoke: !!invoke, togglePanel: togglePanel };
+  window.__deepxToolbar = { remount: remount, toolbar: toolbar, hasInvoke: !!invoke, togglePanel: togglePanel };
   probe(3);
   refreshStatus().catch(function () {});
 })();"###;

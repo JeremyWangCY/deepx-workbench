@@ -146,5 +146,5 @@ Node CDP helper (no screenshots needed; DOM state read directly):
 ## Offline first run
 
 - Build the installer and install it on a Windows x64 VM with Node.js and WebView2 absent and network disabled.
-- First launch must copy the bundled runtime, start Harness, return HTTP 200 on 127.0.0.1:3080, and show the lower-left Update control.
-- After a Harness SPA navigation, confirm the control reappears and offers DeepX, Harness, and marketplace update actions.
+- First launch must copy the bundled runtime, start Harness, return HTTP 200 on 127.0.0.1:3080, and show the top toolbar row.
+- After a Harness reload, confirm the toolbar persists and the update toggle opens the panel with DeepX, Harness, and marketplace actions.
