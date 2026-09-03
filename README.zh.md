@@ -77,6 +77,6 @@ Release 构建由标签（`v*`）经 `.github/workflows/release.yml` 触发：
 - [CHANGELOG.md](CHANGELOG.md) —— 逐版本说明。
 - [docs/QA.md](docs/QA.md) —— 人工验证记录。
 
-## License
+## 许可证
 
 [MIT](LICENSE)
