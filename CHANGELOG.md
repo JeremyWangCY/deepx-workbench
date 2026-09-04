@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.63] - 2026-09-04
+
+### Fixed
+
+- Fixed `dsh web authentication required; reopen the URL printed by dsh web.` in DeepX: When Harness is already running without an active browser session token in logs, navigating to `http://127.0.0.1:3080/` prompted for authentication. DeepX now dynamically mints a signed authentication cookie from the local `~/.dsh/.credentials.yaml` secret and injects it into WebView2, automatically authenticating and reloading into the full DeepSeek Harness Web GUI.
+
 ## [0.1.62] - 2026-09-04
 
 ### Fixed

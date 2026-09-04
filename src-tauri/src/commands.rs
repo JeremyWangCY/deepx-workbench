@@ -1,9 +1,9 @@
 use crate::{
-    configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
-    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
-    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
-    write_no_browser_patch,
+    configure_runtime_environment, dsh_entry, emit_progress, harness_auth_cookie,
+    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
+    marketplace_version, migrate_private_plugins, node_bin, repair_marketplace_metadata,
+    run_output_with_timeout, runtime_dir, seed_bundled_marketplace, stop_harness_service,
+    update_runtime, valid_runtime, write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
@@ -18,6 +18,7 @@ use tokio::io::AsyncWriteExt;
 pub struct RuntimeStatus {
     pub ready: bool,
     pub service_running: bool,
+    pub auth_cookie: Option<String>,
     pub version: Option<String>,
 }
 
@@ -84,6 +85,7 @@ pub async fn runtime_status(app: AppHandle) -> RuntimeStatus {
     RuntimeStatus {
         ready: valid_runtime(&app),
         service_running: healthy().await,
+        auth_cookie: harness_auth_cookie(&app),
         version: package_version(harness_package_manifest(&app)),
     }
 }
@@ -260,6 +262,10 @@ fn get_harness_url(app: &AppHandle) -> String {
 
 async fn navigate_to_harness(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
+    if let Some(cookie) = harness_auth_cookie(&app) {
+        let js = format!("try {{ document.cookie = '{cookie}; path=/; max-age=2592000; SameSite=Strict'; }} catch (e) {{}}");
+        let _ = window.eval(&js);
+    }
     let target = get_harness_url(&app);
     window
         .navigate(Url::parse(&target).map_err(|error| error.to_string())?)
