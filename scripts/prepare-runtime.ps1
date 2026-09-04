@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Destination = (Join-Path $PSScriptRoot "..\src-tauri\resources\runtime")
 )
 
@@ -23,21 +23,30 @@ $nodeRoot = Join-Path $temporary ("node-" + $nodeVersion + "-win-x64")
 $peerNames = @(
     "@deepseek-ai/dsh-anonymous-user-id",
     "@deepseek-ai/dsh-atomic-write",
+    "@deepseek-ai/dsh-attachment",
     "@deepseek-ai/dsh-authorization",
     "@deepseek-ai/dsh-bash-local",
     "@deepseek-ai/dsh-code-runtime",
     "@deepseek-ai/dsh-compaction",
     "@deepseek-ai/dsh-fs",
+    "@deepseek-ai/dsh-hook-protocol",
     "@deepseek-ai/dsh-invariants",
+    "@deepseek-ai/dsh-jobs",
     "@deepseek-ai/dsh-output-retention",
     "@deepseek-ai/dsh-sandbox",
     "@deepseek-ai/dsh-scope",
+    "@deepseek-ai/dsh-sdk-protocol",
+    "@deepseek-ai/dsh-session-persistence",
+    "@deepseek-ai/dsh-session-query",
     "@deepseek-ai/dsh-session-telemetry",
     "@deepseek-ai/dsh-session-title-llm",
+    "@deepseek-ai/dsh-settings",
     "@deepseek-ai/dsh-shell",
     "@deepseek-ai/dsh-spill",
     "@deepseek-ai/dsh-subagent-in-process-driver",
     "@deepseek-ai/dsh-timeout",
+    "@deepseek-ai/dsh-util-time",
+    "@deepseek-ai/dsh-util-workspace-path",
     "@deepseek-ai/dsh-workflow"
 )
 
@@ -141,7 +150,7 @@ $previousPath = $env:PATH
 $previousNodeLinker = $env:npm_config_node_linker
 try {
     $env:DSH_HOME = $marketplaceHome
-    $env:PATH = $pnpmBin
+    $env:PATH = "$pnpmBin;$previousPath"
     $env:npm_config_node_linker = "hoisted"
     & $node $dsh plugin --profile web add dshmarket@latest --config.minimumReleaseAge=0
     if ($LASTEXITCODE -ne 0) {

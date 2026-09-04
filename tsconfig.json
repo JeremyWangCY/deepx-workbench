@@ -1,1 +1,1 @@
-{"compilerOptions":{"allowJs":true,"checkJs":false,"noEmit":true,"module":"ESNext","moduleResolution":"Bundler","target":"ES2022","strict":true},"include":["frontend/**/*.js"]}
+{"compilerOptions":{"allowJs":true,"checkJs":false,"noEmit":true,"module":"ESNext","moduleResolution":"Bundler","target":"ES2022","strict":true,"skipLibCheck":true},"include":["frontend/**/*.js"]}
