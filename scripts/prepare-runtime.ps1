@@ -193,8 +193,20 @@ try {
     $ready = $false
     while ([DateTime]::UtcNow -lt $deadline -and -not $process.HasExited) {
         try {
+            $code = & curl.exe --silent --output NUL --write-out "%{http_code}" --max-time 2 "http://127.0.0.1:$smokePort/"
+            if ($code -match '^[234]\d\d$') {
+                $ready = $true
+                break
+            }
+        } catch {}
+        try {
             $response = Invoke-WebRequest "http://127.0.0.1:$smokePort/" -TimeoutSec 2 -UseBasicParsing
             if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                $ready = $true
+                break
+            }
+        } catch [System.Net.WebException] {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -ge 200 -and [int]$_.Exception.Response.StatusCode -lt 500) {
                 $ready = $true
                 break
             }
@@ -203,7 +215,8 @@ try {
     }
     if (-not $ready) {
         $errors = if (Test-Path $smokeErr) { Get-Content -LiteralPath $smokeErr -Raw } else { "" }
-        throw "Bundled DeepSeek Harness web smoke test failed: $errors"
+        $out = if (Test-Path $smokeOut) { Get-Content -LiteralPath $smokeOut -Raw } else { "" }
+        throw "Bundled DeepSeek Harness web smoke test failed: err=$errors out=$out"
     }
 } finally {
     if ($process -and -not $process.HasExited) {
