@@ -352,7 +352,7 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
             .app_cache_dir()
             .map_err(|error| error.to_string())?;
         fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
-        let installer = cache.join("deepx-workbench-update.exe");
+        let installer = cache.join(format!("deepx-workbench-update-{tag}.exe"));
         let _ = fs::remove_file(&installer);
         emit_progress(&app, 25, format!("正在下载 DeepX {tag}..."));
         let mut response = client
@@ -415,13 +415,18 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
             }
         }
         if let Err(error) = file.flush().await {
+            drop(file);
             let _ = fs::remove_file(&installer);
             return Err(format!("保存 DeepX 更新失败: {error}"));
         }
         if let Err(error) = file.sync_all().await {
+            drop(file);
             let _ = fs::remove_file(&installer);
             return Err(format!("保存 DeepX 更新失败: {error}"));
         }
+        drop(file);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
         let _ = app.emit(
             "deepx-update-progress",
             UpdateProgress {
@@ -433,13 +438,27 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
             },
         );
         emit_progress(&app, 90, "正在启动 DeepX 更新安装器...");
-        Command::new(&installer)
+        let mut spawn_result = Command::new(&installer)
             // /S silent install (skips the remove-previous dialog that hangs
             // GUI mode when previous installs are half-broken), /R relaunches
             // the freshly installed app when the install finishes.
             .args(["/S", "/R"])
-            .spawn()
-            .map_err(|error| format!("启动 DeepX 更新安装器失败: {error}"))?;
+            .spawn();
+
+        if let Err(ref e) = spawn_result {
+            if e.raw_os_error() == Some(32) {
+                for _ in 0..5 {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    spawn_result = Command::new(&installer)
+                        .args(["/S", "/R"])
+                        .spawn();
+                    if spawn_result.is_ok() {
+                        break;
+                    }
+                }
+            }
+        }
+        spawn_result.map_err(|error| format!("启动 DeepX 更新安装器失败: {error}"))?;
         let app_for_exit = app.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(750));

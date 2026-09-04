@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.64] - 2026-09-04
+
+### Fixed
+
+- Fixed `启动 DeepX 更新安装器失败: 另一个程序正在使用此文件，进程无法访问。 (os error 32)`: During DeepX self-update, the downloaded installer file handle (`tokio::fs::File`) was kept open in the current process when executing `Command::new(&installer).spawn()`. On Windows, the write handle caused an exclusive file lock violation (error 32). The file handle is now explicitly closed before launching the installer, with backoff retry handling for antivirus scanners and version-specific update filenames.
+
 ## [0.1.63] - 2026-09-04
 
 ### Fixed
