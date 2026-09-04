@@ -17,6 +17,7 @@ use tokio::io::AsyncWriteExt;
 #[derive(Debug, Serialize)]
 pub struct RuntimeStatus {
     pub ready: bool,
+    pub service_running: bool,
     pub version: Option<String>,
 }
 
@@ -79,9 +80,10 @@ pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn runtime_status(app: AppHandle) -> RuntimeStatus {
+pub async fn runtime_status(app: AppHandle) -> RuntimeStatus {
     RuntimeStatus {
         ready: valid_runtime(&app),
+        service_running: healthy().await,
         version: package_version(harness_package_manifest(&app)),
     }
 }
@@ -240,10 +242,27 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     wait_for_harness(&mut child, &log_path).await
 }
 
+fn get_harness_url(app: &AppHandle) -> String {
+    let log_path = runtime_dir(app).join("harness-startup.log");
+    if let Ok(content) = fs::read_to_string(&log_path) {
+        for line in content.lines().rev() {
+            if let Some(idx) = line.find("http://127.0.0.1:3080/?token=") {
+                let url_part = &line[idx..];
+                let end = url_part
+                    .find(|c: char| c.is_whitespace() || c == ')' || c == '"')
+                    .unwrap_or(url_part.len());
+                return url_part[..end].to_string();
+            }
+        }
+    }
+    "http://127.0.0.1:3080/".to_string()
+}
+
 async fn navigate_to_harness(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
+    let target = get_harness_url(&app);
     window
-        .navigate(Url::parse("http://127.0.0.1:3080/").map_err(|error| error.to_string())?)
+        .navigate(Url::parse(&target).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
     Ok(())
 }

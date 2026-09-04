@@ -543,7 +543,12 @@ pub(crate) async fn healthy() -> bool {
         .timeout(Duration::from_secs(2))
         .send()
         .await
-        .map(|response| response.status().is_success())
+        .map(|response| {
+            let status = response.status();
+            status.is_success()
+                || status.is_redirection()
+                || status == reqwest::StatusCode::UNAUTHORIZED
+        })
         .unwrap_or(false)
 }
 

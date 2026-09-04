@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.62] - 2026-09-04
+
+### Fixed
+
+- DeepX could fail to open DeepSeek Harness while browser access worked: Harness web authentication returns HTTP 401 Unauthorized for unauthenticated index requests, which caused `healthy()` (`is_success()`) to report false even when Harness was actively running. DeepX then attempted to spawn a duplicate Harness process on port 3080, crashing with `EADDRINUSE`. The health check now recognizes HTTP 401, redirections, and 2xx as healthy, and `navigate_to_harness` extracts tokenized launch URLs when available.
+- Window had no top toolbar when Harness failed to launch or during loading: `TOOLBAR_SCRIPT` and `on_page_load` previously only targeted `127.0.0.1:3080`, leaving the local startup/error view borderless with no window controls, drag handle, settings panel, or update button. The toolbar now mounts across both Harness and local pages, with live service connectivity indicators and retry/restart actions on the error panel.
+
 ## [0.1.61] - 2026-09-03
 
 ### Fixed
