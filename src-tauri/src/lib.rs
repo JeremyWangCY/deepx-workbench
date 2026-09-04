@@ -6,7 +6,9 @@ use tauri::{
 };
 
 const TOOLBAR_SCRIPT: &str = r###"(() => {
-  if (location.hostname !== '127.0.0.1' || location.port !== '3080') { return; }
+  var isHarness = location.hostname === '127.0.0.1' && location.port === '3080';
+  var isLocal = location.hostname === 'tauri.localhost' || location.hostname === 'localhost';
+  if (!isHarness && !isLocal) { return; }
   var liveInvoke = getInvoke();
   var probe = function (br) {
     try {
@@ -192,12 +194,27 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span><button class="deepx-panel-close" title="关闭">×</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">服务与连接</div>'
       + '<div class="deepx-row"><span>Harness 地址</span><span style="font-family:Consolas,monospace">127.0.0.1:3080</span></div>'
-      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge">运行中</span></div>'
+      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge' + (isHarness ? '' : ' deepx-badge-err') + '">' + (isHarness ? '运行中' : '未连接') + '</span></div>'
       + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness 服务</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">关于</div>'
       + '<div class="deepx-row"><span>版本</span><span class="deepx-settings-ver">' + ver + '</span></div>'
       + '<div class="deepx-row"><span>运行环境</span><span>WebView2 / Tauri</span></div>'
       + '<div class="deepx-row"><span>关闭按钮行为</span><span>最小化到系统托盘</span></div></div>';
+    var ri = getInvoke();
+    if (ri) {
+      ri('runtime_status').then(function (st) {
+        var b = settingsPanel && settingsPanel.querySelector('.deepx-service-badge');
+        if (b && st) {
+          if (st.service_running) {
+            b.className = 'deepx-badge';
+            b.textContent = '运行中';
+          } else {
+            b.className = 'deepx-badge deepx-badge-err';
+            b.textContent = '未连接';
+          }
+        }
+      }).catch(function () {});
+    }
     const closeBtn = settingsPanel.querySelector('.deepx-panel-close');
     if (closeBtn) { closeBtn.onclick = toggleSettings; }
     const rBtn = settingsPanel.querySelector('.deepx-restart-btn');
@@ -476,8 +493,11 @@ pub fn run() {
             );
             if payload.event() == PageLoadEvent::Finished {
                 let is_target = webview.label() == "main"
-                    && payload.url().host_str() == Some("127.0.0.1")
-                    && payload.url().port() == Some(3080);
+                    && (
+                        (payload.url().host_str() == Some("127.0.0.1") && payload.url().port() == Some(3080))
+                        || payload.url().host_str() == Some("tauri.localhost")
+                        || payload.url().host_str() == Some("localhost")
+                    );
                 if is_target {
                     let result = webview.eval(TOOLBAR_SCRIPT);
                     let _ = writeln!(log, "EVAL label={} result={:?}", webview.label(), result);

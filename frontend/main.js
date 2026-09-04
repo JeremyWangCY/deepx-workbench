@@ -17,6 +17,43 @@ function render() {
     main.querySelector(".detail").textContent = state.detail;
     main.querySelector(".track i").style.width = `${state.progress}%`;
     main.querySelector(".error").textContent = state.error;
+
+    if (state.error) {
+      const actions = document.createElement("div");
+      actions.className = "error-actions";
+
+      const retryBtn = document.createElement("button");
+      retryBtn.className = "deepx-panel-btn";
+      retryBtn.textContent = "重试连接";
+      retryBtn.onclick = () => {
+        state.error = "";
+        state.detail = "正在重新连接...";
+        render();
+        void boot();
+      };
+
+      const restartBtn = document.createElement("button");
+      restartBtn.className = "deepx-panel-btn deepx-panel-btn-sub";
+      restartBtn.textContent = "重启服务";
+      restartBtn.onclick = async () => {
+        state.error = "";
+        state.detail = "正在重启 Harness 服务...";
+        render();
+        try {
+          await invoke("restart_harness");
+          state.ready = true;
+          render();
+          await invoke("show_harness");
+        } catch (err) {
+          state.error = String(err);
+          render();
+        }
+      };
+
+      actions.appendChild(retryBtn);
+      actions.appendChild(restartBtn);
+      main.querySelector(".panel")?.appendChild(actions);
+    }
   }
   root.appendChild(main);
 }
