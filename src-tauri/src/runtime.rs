@@ -552,6 +552,49 @@ pub(crate) async fn healthy() -> bool {
         .unwrap_or(false)
 }
 
+pub(crate) fn harness_auth_cookie(app: &AppHandle) -> Option<String> {
+    let cred_path = dsh_home(app).ok()?.join(".credentials.yaml");
+    if !cred_path.exists() {
+        return None;
+    }
+    let script = r#"
+const fs = require("fs");
+const crypto = require("crypto");
+const credPath = process.argv[1];
+try {
+  const content = fs.readFileSync(credPath, "utf8");
+  const match = content.match(/client-connection\/browser-session:[\s\S]*?secret:\s*([^\s]+)/);
+  if (!match) process.exit(1);
+  function b64u(b) { return b.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
+  function unb64u(s) { return Buffer.from(s.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat((4 - s.length % 4) % 4), "base64"); }
+  const authority = "127.0.0.1:3080";
+  const secret = unb64u(match[1]);
+  const name = "dsh-auth-" + b64u(crypto.createHash("sha256").update(authority).digest());
+  const now = Date.now();
+  const payload = { version: 1, authority, issuedAt: now, expiresAt: now + 30 * 86400 * 1000 };
+  const body = b64u(Buffer.from(JSON.stringify(payload)));
+  const sig = b64u(crypto.createHmac("sha256", secret).update(body).digest());
+  process.stdout.write(`${name}=v1.${body}.${sig}`);
+} catch {
+  process.exit(1);
+}
+"#;
+    let node = node_bin(app);
+    let mut command = Command::new(node);
+    hidden(&mut command);
+    command.arg("-e").arg(script).arg(cred_path);
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let cookie = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if cookie.is_empty() {
+        None
+    } else {
+        Some(cookie)
+    }
+}
+
 fn no_browser_patch_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dsh_home(app)?.join("deepx-no-open.yml"))
 }

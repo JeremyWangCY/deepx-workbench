@@ -10,6 +10,27 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   var isLocal = location.hostname === 'tauri.localhost' || location.hostname === 'localhost';
   if (!isHarness && !isLocal) { return; }
   var liveInvoke = getInvoke();
+  var checkAuth = function () {
+    if (!isHarness) { return; }
+    var txt = (document.body && (document.body.innerText || document.body.textContent)) || '';
+    if (txt.indexOf('dsh web authentication required') !== -1) {
+      var ci = getInvoke();
+      if (ci && !window.__deepxAuthenticating) {
+        window.__deepxAuthenticating = true;
+        ci('runtime_status').then(function (st) {
+          if (st && st.auth_cookie) {
+            document.cookie = st.auth_cookie + '; path=/; max-age=2592000; SameSite=Strict';
+            location.reload();
+          } else {
+            window.__deepxAuthenticating = false;
+          }
+        }).catch(function () {
+          window.__deepxAuthenticating = false;
+        });
+      }
+    }
+  };
+  checkAuth();
   var probe = function (br) {
     try {
       var tbs = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
@@ -282,6 +303,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   // refires on full navigations, so re-assert both on interval + DOM mutations.
   function remount() {
     try {
+      checkAuth();
       if (style && !style.isConnected && document.head) { document.head.appendChild(style); }
       if (toolbar && !toolbar.isConnected && document.body) { document.body.appendChild(toolbar); }
     } catch (e) { /* best effort */ }
@@ -326,7 +348,21 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       var ri = getInvoke();
       if (reloadButton.disabled || !ri) { return; }
       reloadButton.disabled = true;
-      ri('reload_harness').catch(function () {}).then(function () { reloadButton.disabled = false; });
+      var txt = (document.body && (document.body.innerText || document.body.textContent)) || '';
+      if (txt.indexOf('dsh web authentication required') !== -1) {
+        ri('runtime_status').then(function (st) {
+          if (st && st.auth_cookie) {
+            document.cookie = st.auth_cookie + '; path=/; max-age=2592000; SameSite=Strict';
+            location.reload();
+            return;
+          }
+          ri('reload_harness').catch(function () {}).then(function () { reloadButton.disabled = false; });
+        }).catch(function () {
+          ri('reload_harness').catch(function () {}).then(function () { reloadButton.disabled = false; });
+        });
+      } else {
+        ri('reload_harness').catch(function () {}).then(function () { reloadButton.disabled = false; });
+      }
     });
     toolbar.querySelector('.deepx-update-toggle').addEventListener('click', togglePanel);
     toolbar.querySelector('.deepx-settings-toggle').addEventListener('click', toggleSettings);
@@ -375,11 +411,11 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
 mod commands;
 mod runtime;
 pub(crate) use runtime::{
-    configure_runtime_environment, dsh_entry, emit_progress, harness_package_manifest, healthy,
-    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
-    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
-    write_no_browser_patch,
+    configure_runtime_environment, dsh_entry, emit_progress, harness_auth_cookie,
+    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
+    marketplace_version, migrate_private_plugins, node_bin, repair_marketplace_metadata,
+    run_output_with_timeout, runtime_dir, seed_bundled_marketplace, stop_harness_service,
+    update_runtime, valid_runtime, write_no_browser_patch,
 };
 
 fn activate_main(app: &AppHandle) {
