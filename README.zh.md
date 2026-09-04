@@ -37,6 +37,11 @@ Rust/Tauri 宿主，与官方唯一的兼容面是 Harness 运行时与 CLI：
 日常启动不做任何依赖安装。私有 pnpm 环境和插件市场在首次运行后就绪；
 之后的 Harness 与市场更新都是用户显式触发，需要联网。
 
+## 使用
+
+从开始菜单或桌面快捷方式启动 DeepX Workbench。窗口直连本地 Harness
+服务 `127.0.0.1:3080`，开箱即用。
+
 ## 设计目标
 
 - 启动面极简，直达 Harness。
@@ -53,10 +58,11 @@ Rust/Tauri 宿主，与官方唯一的兼容面是 Harness 运行时与 CLI：
 
 ## 开发
 
-安装 Node.js 与 pnpm，然后：
+安装 Node.js、pnpm 与 Rust stable，然后：
 
 ```bash
 pnpm install
+pnpm prepare:runtime
 pnpm tauri dev
 ```
 

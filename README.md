@@ -44,6 +44,11 @@ environment and plugin marketplace are ready after first-run setup; later
 Harness and marketplace updates are explicit user actions and need an internet
 connection.
 
+## Usage
+
+Launch DeepX Workbench from the Start Menu or desktop shortcut. The window
+opens directly into Harness at `127.0.0.1:3080`.
+
 ## Design goals
 
 - Minimal startup surface, straight into Harness.
@@ -61,10 +66,11 @@ connection.
 
 ## Development
 
-Install Node.js and pnpm, then:
+Install Node.js, pnpm, and Rust stable, then:
 
 ```bash
 pnpm install
+pnpm prepare:runtime
 pnpm tauri dev
 ```
 
