@@ -32,8 +32,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     + '.deepx-toolbar{position:fixed!important;top:0!important;left:0!important;right:0!important;height:40px!important;z-index:2147483647!important;display:flex!important;flex-direction:row!important;align-items:center!important;background:#f8f9fa!important;border-bottom:1px solid #e4e7eb!important;color:#202124!important;font:13px Segoe UI,system-ui,sans-serif!important;user-select:none!important}.deepx-toolbar-left{height:100%!important;display:flex!important;align-items:center!important;gap:4px!important;padding-left:8px!important}.deepx-toolbar-name{padding:0 8px!important;color:#5f6368!important;font-weight:600!important;display:inline-flex!important;align-items:center!important}.deepx-toolbar-drag{height:100%!important;flex:1 1 auto!important;min-width:40px!important}'
     + '.deepx-page-reload,.deepx-update-toggle,.deepx-settings-toggle{height:28px!important;border:0!important;border-radius:6px!important;background:transparent!important;color:#68717d!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;transition:background .12s,color .12s!important}.deepx-page-reload{width:28px!important;padding:0!important}.deepx-page-reload:hover,.deepx-update-toggle:hover,.deepx-settings-toggle:hover{background:#e9edf1!important;color:#202124!important}.deepx-page-reload:disabled{opacity:.4!important;cursor:default!important}.deepx-update-toggle,.deepx-settings-toggle{padding:0 10px!important;gap:4px!important}.deepx-toolbar-win{height:100%!important;display:flex!important;flex-direction:row!important;align-items:stretch!important;margin-left:6px!important;border-left:1px solid #e4e7eb!important}'
     + '.deepx-win{width:44px!important;height:100%!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;transition:background .12s,color .12s!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}'
-    + '.deepx-panel{position:fixed!important;top:48px!important;left:8px!important;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:8px!important}.deepx-title{font-weight:650!important}.deepx-refresh,.deepx-panel-close{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:14px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.deepx-panel-close:hover{background:#f0f2f5!important;color:#202124!important}'
-    + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-sec{margin-top:8px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important}.deepx-sec-title{font-size:11px!important;font-weight:600!important;color:#8a94a6!important;margin-bottom:4px!important;text-transform:uppercase!important;letter-spacing:.5px!important}.deepx-badge{display:inline-flex!important;align-items:center!important;gap:4px!important;color:#107c41!important;font-size:12px!important;font-weight:600!important}.deepx-badge::before{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:#107c41!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-btn-sub{background:#f0f2f5!important;color:#202124!important}.deepx-btn-sub:hover{background:#e4e7eb!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
+    + '.deepx-panel{position:fixed!important;top:48px!important;left:8px;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:8px!important}.deepx-title{font-weight:650!important}.deepx-refresh,.deepx-panel-close{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:14px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.deepx-panel-close:hover{background:#f0f2f5!important;color:#202124!important}'
+    + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-sec{margin-top:8px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important}.deepx-sec-title{font-size:11px!important;font-weight:600!important;color:#8a94a6!important;margin-bottom:4px!important;text-transform:uppercase!important;letter-spacing:.5px!important}.deepx-badge{display:inline-flex!important;align-items:center!important;gap:4px!important;color:#107c41!important;font-size:12px!important;font-weight:600!important}.deepx-badge::before{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:#107c41!important}.deepx-badge-busy{color:#d97706!important}.deepx-badge-busy::before{background:#d97706!important}.deepx-badge-err{color:#c23d3d!important}.deepx-badge-err::before{background:#c23d3d!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-btn-sub{background:#f0f2f5!important;color:#202124!important}.deepx-btn-sub:hover{background:#e4e7eb!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
     + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html{padding-top:40px!important;box-sizing:border-box!important}';
   const style = document.createElement('style');
   style.id = 'deepx-toolbar-style';
@@ -97,6 +97,10 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function applyStatus(status) {
     updateStatus = status;
+    if (settingsPanel && status && status.deepx && status.deepx.current) {
+      const vEl = settingsPanel.querySelector('.deepx-settings-ver');
+      if (vEl) { vEl.textContent = 'v' + status.deepx.current; }
+    }
     if (!panel) { return; }
     panel.querySelector('.deepx-app-version').textContent = versionText(status && status.deepx);
     panel.querySelector('.deepx-version').textContent = versionText(status && status.harness);
@@ -171,37 +175,50 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; }
     panel = document.createElement('div');
     panel.className = 'deepx-panel';
+    const ut = toolbar && toolbar.querySelector('.deepx-update-toggle');
+    if (ut) {
+      const ur = ut.getBoundingClientRect();
+      panel.style.left = Math.max(8, Math.min(ur.left, window.innerWidth - 370)) + 'px';
+    }
     document.body.appendChild(panel);
     drawPanel();
     refreshStatus().catch(function () {});
   }
   function drawSettingsPanel() {
     if (!settingsPanel) { return; }
+    const ver = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : 'v0.1.61';
     settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span><button class="deepx-panel-close" title="关闭">×</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">服务与连接</div>'
       + '<div class="deepx-row"><span>Harness 地址</span><span style="font-family:Consolas,monospace">127.0.0.1:3080</span></div>'
-      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge">运行中</span></div>'
+      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge">运行中</span></div>'
       + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness 服务</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">关于</div>'
-      + '<div class="deepx-row"><span>版本</span><span>v0.1.61</span></div>'
+      + '<div class="deepx-row"><span>版本</span><span class="deepx-settings-ver">' + ver + '</span></div>'
       + '<div class="deepx-row"><span>运行环境</span><span>WebView2 / Tauri</span></div>'
       + '<div class="deepx-row"><span>关闭按钮行为</span><span>最小化到系统托盘</span></div></div>';
     const closeBtn = settingsPanel.querySelector('.deepx-panel-close');
     if (closeBtn) { closeBtn.onclick = toggleSettings; }
     const rBtn = settingsPanel.querySelector('.deepx-restart-btn');
+    const badge = settingsPanel.querySelector('.deepx-service-badge');
     if (rBtn) {
       rBtn.onclick = async function () {
         var ri = getInvoke();
         if (!ri || rBtn.disabled) { return; }
         rBtn.disabled = true;
         rBtn.textContent = '正在重启...';
+        if (badge) { badge.className = 'deepx-badge deepx-badge-busy'; badge.textContent = '正在重启'; }
         try {
           await ri('restart_harness');
           rBtn.textContent = 'Harness 已重启';
+          if (badge) { badge.className = 'deepx-badge'; badge.textContent = '运行中'; }
         } catch (e) {
           rBtn.textContent = '重启失败: ' + e;
+          if (badge) { badge.className = 'deepx-badge deepx-badge-err'; badge.textContent = '重启失败'; }
         } finally {
-          setTimeout(function () { if (rBtn) { rBtn.disabled = false; rBtn.textContent = '重启 Harness 服务'; } }, 3000);
+          setTimeout(function () {
+            if (rBtn) { rBtn.disabled = false; rBtn.textContent = '重启 Harness 服务'; }
+            if (badge && badge.textContent === '正在重启') { badge.className = 'deepx-badge'; badge.textContent = '运行中'; }
+          }, 3000);
         }
       };
     }
@@ -213,8 +230,14 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     if (panel) { panel.remove(); panel = null; }
     settingsPanel = document.createElement('div');
     settingsPanel.className = 'deepx-panel deepx-settings-panel';
+    const st = toolbar && toolbar.querySelector('.deepx-settings-toggle');
+    if (st) {
+      const sr = st.getBoundingClientRect();
+      settingsPanel.style.left = Math.max(8, Math.min(sr.left, window.innerWidth - 350)) + 'px';
+    }
     document.body.appendChild(settingsPanel);
     drawSettingsPanel();
+    if (!updateStatus) { refreshStatus().catch(function () {}); }
   }
   function fitHarnessBelowTitlebar() {
     if (!toolbar) { return false; }
