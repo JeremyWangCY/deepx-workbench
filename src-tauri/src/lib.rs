@@ -154,10 +154,12 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function drawPanel() {
     if (!panel) { return; }
-    panel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX</span><button class="deepx-refresh" title="刷新状态">↻</button></div><div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">未检查</span></div><div class="deepx-row"><span>Harness</span><span class="deepx-version">未检查</span></div><div class="deepx-row"><span>插件市场</span><span class="deepx-market-version">未检查</span></div><div class="deepx-actions"></div><div class="deepx-track"><i></i></div><div class="deepx-status"></div>';
+    panel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 更新</span><div style="display:flex;gap:4px"><button class="deepx-refresh" title="刷新状态">↻</button><button class="deepx-panel-close" title="关闭">×</button></div></div><div class="deepx-row"><span>DeepX</span><span class="deepx-app-version">未检查</span></div><div class="deepx-row"><span>Harness</span><span class="deepx-version">未检查</span></div><div class="deepx-row"><span>插件市场</span><span class="deepx-market-version">未检查</span></div><div class="deepx-actions"></div><div class="deepx-track"><i></i></div><div class="deepx-status"></div>';
     setProgress(progressValue);
     setStatus(statusMessage, statusError);
     applyStatus(updateStatus || { deepx: null, harness: null, marketplace: null });
+    const closeBtn = panel.querySelector('.deepx-panel-close');
+    if (closeBtn) { closeBtn.onclick = togglePanel; }
     const refreshButton = panel.querySelector('.deepx-refresh');
     refreshButton.onclick = async function () {
       if (busy || refreshButton.disabled) { return; }
@@ -186,7 +188,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function drawSettingsPanel() {
     if (!settingsPanel) { return; }
-    const ver = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : 'v0.1.61';
+    const ver = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : '--';
     settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span><button class="deepx-panel-close" title="关闭">×</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">服务与连接</div>'
       + '<div class="deepx-row"><span>Harness 地址</span><span style="font-family:Consolas,monospace">127.0.0.1:3080</span></div>'
@@ -233,7 +235,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     const st = toolbar && toolbar.querySelector('.deepx-settings-toggle');
     if (st) {
       const sr = st.getBoundingClientRect();
-      settingsPanel.style.left = Math.max(8, Math.min(sr.left, window.innerWidth - 350)) + 'px';
+      settingsPanel.style.left = Math.max(8, Math.min(sr.left, window.innerWidth - 370)) + 'px';
     }
     document.body.appendChild(settingsPanel);
     drawSettingsPanel();
@@ -332,6 +334,22 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }) }).catch(function () {});
   }
   mountToolbar();
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (panel) { panel.remove(); panel = null; }
+      if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; }
+    }
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (panel && !panel.contains(e.target) && (!toolbar || !toolbar.querySelector('.deepx-update-toggle') || !toolbar.querySelector('.deepx-update-toggle').contains(e.target))) {
+      panel.remove();
+      panel = null;
+    }
+    if (settingsPanel && !settingsPanel.contains(e.target) && (!toolbar || !toolbar.querySelector('.deepx-settings-toggle') || !toolbar.querySelector('.deepx-settings-toggle').contains(e.target))) {
+      settingsPanel.remove();
+      settingsPanel = null;
+    }
+  });
   window.__deepxToolbar = { remount: remount, toolbar: toolbar, hasInvoke: !!invoke, togglePanel: togglePanel, toggleSettings: toggleSettings };
   probe(3);
   refreshStatus().catch(function () {});
@@ -532,18 +550,16 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => activate_main(app),
                     "update" => {
+                        activate_main(app);
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
                             let _ = window.eval(
                                 r#"window.__deepxToolbar && window.__deepxToolbar.togglePanel && window.__deepxToolbar.togglePanel()"#,
                             );
                         }
                     }
                     "settings" => {
+                        activate_main(app);
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
                             let _ = window.eval(
                                 r#"window.__deepxToolbar && window.__deepxToolbar.toggleSettings && window.__deepxToolbar.toggleSettings()"#,
                             );
