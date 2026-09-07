@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.68] - 2026-09-07
+
+### Fixed
+
+- Fixed the true root cause of the scrollable blank zone under the chat composer: DeepX's v0.1.66 full-screen modal rule `[class*="_overlay"] { top: 40px; height: calc(100vh - 40px); padding: ... }` also matched the Harness's zero-size `.overlayAnchor` (an absolutely-positioned popover anchor inside the conversation scroller), stretching it to 760px and inflating the conversation's scrollable overflow by exactly that amount — producing an ever-scrollable white region below the composer that the sticky input could never dock into (and which the browser never shows). The rule is now scoped with `:not([class*="overlayAnchor"])`; root-level scroll locks added in 0.1.67 are kept as defense.
+
 ## [0.1.67] - 2026-09-07
 
 ### Fixed
