@@ -1,10 +1,11 @@
 use crate::{
     configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
-    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility, harness_auth_cookie,
-    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
-    marketplace_version, migrate_private_plugins, node_bin, profile_dir,
-    repair_marketplace_metadata, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
-    stop_harness_service, update_runtime, valid_runtime, write_no_browser_patch,
+    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
+    ensure_profile_store_compatibility, harness_auth_cookie, harness_package_manifest, healthy,
+    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
+    node_bin, profile_dir, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
+    write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
@@ -296,6 +297,7 @@ async fn stop_current_harness() -> Result<(), String> {
 pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     let migrated = migrate_private_plugins(&app)?;
     let _ = ensure_legacy_preset_compatibility(&app);
+    let _ = ensure_profile_store_compatibility(&app);
     if healthy().await {
         if !migrated {
             return Ok(());

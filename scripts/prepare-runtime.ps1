@@ -117,6 +117,7 @@ $pnpmBin = Join-Path $buildDestination "bin"
 New-Item -ItemType Directory -Force -Path $pnpmBin | Out-Null
 $pnpmCommand = @'
 @echo off
+set "PNPM_HOME="
 "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0pnpm.ps1" %*
 exit /b %ERRORLEVEL%
 '@
@@ -145,6 +146,7 @@ try {
         [Console]::Error.WriteLine("DeepX: 插件安装等待超时，请关闭其他安装后重试。")
         exit 1
     }
+    Remove-Item env:PNPM_HOME -ErrorAction SilentlyContinue
     & (Join-Path $PSScriptRoot "..\node\node.exe") (Join-Path $PSScriptRoot "..\node_modules\pnpm\bin\pnpm.cjs") @args
     $exitCode = $LASTEXITCODE
 } finally {

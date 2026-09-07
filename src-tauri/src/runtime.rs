@@ -202,6 +202,22 @@ pub(crate) fn marketplace_installed(app: &AppHandle) -> bool {
             .is_file()
 }
 
+pub(crate) fn ensure_profile_store_compatibility(app: &AppHandle) -> Result<(), String> {
+    let profile = profile_dir(app)?;
+    let modules_manifest = profile.join("node_modules/.modules.yaml");
+    if modules_manifest.is_file() {
+        if let Ok(content) = fs::read_to_string(&modules_manifest) {
+            let needs_reset = content.contains("com.jeremy.deepx-workbench")
+                || content.contains("runtime\\bin\\store")
+                || content.contains("runtime/bin/store");
+            if needs_reset {
+                let _ = fs::remove_file(&modules_manifest);
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn repair_marketplace_metadata(app: &AppHandle) -> Result<(), String> {
     let profile = profile_dir(app)?;
     let modules_manifest = profile.join("node_modules/.modules.yaml");
