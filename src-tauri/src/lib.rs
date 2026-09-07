@@ -12,8 +12,9 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   var liveInvoke = getInvoke();
   var checkAuth = function () {
     if (!isHarness) { return; }
+    if (document.getElementById('root') || window.__DSH_BOOT__) { return; }
     var txt = (document.body && (document.body.innerText || document.body.textContent)) || '';
-    if (txt.indexOf('dsh web authentication required') !== -1) {
+    if (txt.trim() === 'dsh web authentication required; reopen the URL printed by dsh web.') {
       var ci = getInvoke();
       if (ci && !window.__deepxAuthenticating) {
         window.__deepxAuthenticating = true;
@@ -303,7 +304,6 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   // refires on full navigations, so re-assert both on interval + DOM mutations.
   function remount() {
     try {
-      checkAuth();
       if (style && !style.isConnected && document.head) { document.head.appendChild(style); }
       if (toolbar && !toolbar.isConnected && document.body) { document.body.appendChild(toolbar); }
     } catch (e) { /* best effort */ }
@@ -348,8 +348,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       var ri = getInvoke();
       if (reloadButton.disabled || !ri) { return; }
       reloadButton.disabled = true;
-      var txt = (document.body && (document.body.innerText || document.body.textContent)) || '';
-      if (txt.indexOf('dsh web authentication required') !== -1) {
+      var isAuthErr = !document.getElementById('root') && !window.__DSH_BOOT__ && (document.body && (document.body.innerText || document.body.textContent || '').trim() === 'dsh web authentication required; reopen the URL printed by dsh web.');
+      if (isAuthErr) {
         ri('runtime_status').then(function (st) {
           if (st && st.auth_cookie) {
             document.cookie = st.auth_cookie + '; path=/; max-age=2592000; SameSite=Strict';

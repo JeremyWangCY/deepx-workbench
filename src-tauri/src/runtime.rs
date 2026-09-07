@@ -16,25 +16,34 @@ pub struct Progress {
 
 const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
 
-const REQUIRED_DSH_PEERS: [&str; 19] = [
+const REQUIRED_DSH_PEERS: [&str; 28] = [
     "@deepseek-ai/cordis-plugin-group",
     "@deepseek-ai/dsh-anonymous-user-id",
     "@deepseek-ai/dsh-atomic-write",
+    "@deepseek-ai/dsh-attachment",
     "@deepseek-ai/dsh-authorization",
     "@deepseek-ai/dsh-bash-local",
     "@deepseek-ai/dsh-code-runtime",
     "@deepseek-ai/dsh-compaction",
     "@deepseek-ai/dsh-fs",
+    "@deepseek-ai/dsh-hook-protocol",
     "@deepseek-ai/dsh-invariants",
+    "@deepseek-ai/dsh-jobs",
     "@deepseek-ai/dsh-output-retention",
     "@deepseek-ai/dsh-sandbox",
     "@deepseek-ai/dsh-scope",
+    "@deepseek-ai/dsh-sdk-protocol",
+    "@deepseek-ai/dsh-session-persistence",
+    "@deepseek-ai/dsh-session-query",
     "@deepseek-ai/dsh-session-telemetry",
     "@deepseek-ai/dsh-session-title-llm",
+    "@deepseek-ai/dsh-settings",
     "@deepseek-ai/dsh-shell",
     "@deepseek-ai/dsh-spill",
     "@deepseek-ai/dsh-subagent-in-process-driver",
     "@deepseek-ai/dsh-timeout",
+    "@deepseek-ai/dsh-util-time",
+    "@deepseek-ai/dsh-util-workspace-path",
     "@deepseek-ai/dsh-workflow",
 ];
 

@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.65] - 2026-09-04
+
+### Fixed
+
+- Fixed infinite window reloading loop: The toolbar authentication check previously searched `document.body.innerText` with `indexOf` and was invoked from `remount()`, causing it to detect mentions of `dsh web authentication required` inside chat conversation text and repeatedly trigger `location.reload()`. The check is now restricted to initial page load, strictly requires an unmounted SPA (`#root` absent) with exact 401 error text matching, and was removed from the periodic toolbar remount loop.
+- Aligned runtime `REQUIRED_DSH_PEERS` list to include all 28 `@deepseek-ai/*` packages required by `@deepseek-ai/dsh@latest` (including `dsh-jobs`, `dsh-attachment`, `dsh-settings`, etc.) ensuring clean updates and compatibility.
+
 ## [0.1.64] - 2026-09-04
 
 ### Fixed
