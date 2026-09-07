@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.67] - 2026-09-07
+
+### Fixed
+
+- Fixed outer window scroll exposing white space below the chat input box: Locked `html`, `body`, and `#root` with `overflow: hidden !important` and added a window scroll lock listener to strictly prevent root-level window scrolling. All scrolling is contained within Harness internal scrollports (`.wSkVaW_scrollBody`), ensuring the sticky composer remains locked to the viewport floor without floating or showing blank canvas underneath.
+- Fixed legacy `code` agent preset compatibility on session resume / model switch: DeepSeek Harness renamed the default coding preset from `code` to `standard`. Sessions created under previous versions threw `RemoteError: agent-presets: preset "code" not found` when resumed or switched. DeepX now automatically ensures `code` preset compatibility both on disk and in preset resolution fallback.
+
 ## [0.1.66] - 2026-09-07
 
 ### Fixed

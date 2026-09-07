@@ -1,9 +1,9 @@
 use crate::{
-    configure_runtime_environment, dsh_entry, emit_progress, harness_auth_cookie,
-    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
-    marketplace_version, migrate_private_plugins, node_bin, repair_marketplace_metadata,
-    run_output_with_timeout, runtime_dir, seed_bundled_marketplace, stop_harness_service,
-    update_runtime, valid_runtime, write_no_browser_patch,
+    configure_runtime_environment, dsh_entry, emit_progress, ensure_legacy_preset_compatibility,
+    harness_auth_cookie, harness_package_manifest, healthy, hidden, install_runtime,
+    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin,
+    repair_marketplace_metadata, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
+    stop_harness_service, update_runtime, valid_runtime, write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
@@ -204,6 +204,7 @@ async fn stop_current_harness() -> Result<(), String> {
 #[tauri::command]
 pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     let migrated = migrate_private_plugins(&app)?;
+    let _ = ensure_legacy_preset_compatibility(&app);
     if healthy().await {
         if !migrated {
             return Ok(());

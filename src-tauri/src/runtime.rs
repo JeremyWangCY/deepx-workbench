@@ -756,3 +756,19 @@ pub(crate) fn migrate_private_plugins(app: &AppHandle) -> Result<bool, String> {
         .map_err(|error| error.to_string())?;
     Ok(true)
 }
+
+pub(crate) fn ensure_legacy_preset_compatibility(app: &AppHandle) -> Result<(), String> {
+    let base = runtime_dir(app).join("node_modules/@deepseek-ai/dsh-agent-presets/presets");
+    let standard = base.join("standard");
+    let code = base.join("code");
+    if standard.is_dir() && !code.exists() {
+        let _ = copy_directory(&standard, &code);
+    }
+    if let Ok(home) = dsh_home(app) {
+        let user_code = home.join(".agent-presets/code");
+        if standard.is_dir() && !user_code.exists() {
+            let _ = copy_directory(&standard, &user_code);
+        }
+    }
+    Ok(())
+}
