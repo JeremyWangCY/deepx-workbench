@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.66] - 2026-09-07
+
+### Fixed
+
+- Fixed settings window collision with titlebar and mutation loops: Full-screen overlay modals (such as DeepSeek Harness settings) are now cleanly padded and bounded below the 40px top titlebar (`[class*="_overlay"]` with `top: 40px`, `height: calc(100vh - 40px)`, and `padding: 24px 20px 20px`). `fitHarnessBelowTitlebar` now excludes modal dialogs/overlays to avoid repeatedly shifting them or triggering layout reflows on tab switches.
+- Fixed pnpm detection in plugin marketplace (`dshmarket`): Explicitly exported `PNPM_HOME` pointing to `runtime_dir/bin` in `configure_runtime_environment` so that child processes and plugin managers resolve bundled pnpm reliably without falling back to broken system corepack shims.
+
 ## [0.1.65] - 2026-09-04
 
 ### Fixed

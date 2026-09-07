@@ -116,6 +116,7 @@ pub(crate) fn configure_runtime_environment(
         std::env::join_paths(paths).map_err(|error| error.to_string())?,
     );
     command.env("COREPACK_HOME", runtime_dir(app).join("corepack"));
+    command.env("PNPM_HOME", runtime_dir(app).join("bin"));
     command.env("npm_config_node_linker", "hoisted");
     Ok(())
 }
