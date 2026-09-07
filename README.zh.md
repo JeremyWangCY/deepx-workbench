@@ -8,9 +8,8 @@
 [![Release](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/release.yml/badge.svg)](https://github.com/JeremyWangCY/deepx-workbench/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-DeepX Workbench 是官方 DeepSeek Harness 运行时的独立 桌面外壳，
-采用极简 Vite 前端与自研 Rust/Tauri 宿主构建。与官方唯一的兼容面是
-Harness 运行时与 CLI：
+DeepX Workbench 是基于 Rust/Tauri 和 Vite 构建的 DeepSeek Harness 桌面客户端，
+直接连接官方 Harness 运行时与 CLI：
 
 - 本地 Harness HTTP 服务 `127.0.0.1:3080`
 - `dsh --profile web --no-open --port 3080`

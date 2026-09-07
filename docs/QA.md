@@ -7,7 +7,7 @@ Platform: Windows, x64, Tauri + Vite build.
 
 ### First install (one-time)
 
-- A install of the official runtime `@deepseek-ai/dsh@latest` was run
+- A fresh install of the official runtime `@deepseek-ai/dsh@latest` was run
   against an empty prefix.
 - Result: success. `npm install` added **511 packages**, ~212 MB on disk.
 - Time: **about 18 minutes** on this machine. This is the large dependency tree

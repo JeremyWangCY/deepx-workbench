@@ -8,10 +8,9 @@
 [![Release](https://github.com/JeremyWangCY/deepx-workbench/actions/workflows/release.yml/badge.svg)](https://github.com/JeremyWangCY/deepx-workbench/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-DeepX Workbench is an independent, desktop shell for the official
-DeepSeek Harness runtime, built with its own minimal Vite frontend and custom
-Rust/Tauri host. The primary compatibility surface is the official Harness
-runtime and CLI:
+DeepX Workbench is a lightweight desktop shell for the DeepSeek Harness runtime,
+built with a minimal Vite frontend and a Rust/Tauri host. It connects directly to
+the official Harness runtime and CLI:
 
 - local Harness HTTP service at `127.0.0.1:3080`
 - `dsh --profile web --no-open --port 3080`
