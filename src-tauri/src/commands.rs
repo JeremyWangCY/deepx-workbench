@@ -135,7 +135,11 @@ pub fn window_action(app: AppHandle, action: String) -> Result<Option<usize>, St
 }
 
 fn open_path_in_explorer(app: &AppHandle, path: &std::path::Path) {
-    if app.opener().open_path(path.to_string_lossy(), None::<&str>).is_err() {
+    if app
+        .opener()
+        .open_path(path.to_string_lossy(), None::<&str>)
+        .is_err()
+    {
         #[cfg(windows)]
         {
             let _ = Command::new("explorer").arg(path).spawn();
@@ -174,7 +178,11 @@ fn version_status(current: Option<String>, latest: Option<String>) -> VersionSta
     }
 }
 
-async fn fetch_npm_version(client: &reqwest::Client, url: &str, timeout_secs: u64) -> Option<String> {
+async fn fetch_npm_version(
+    client: &reqwest::Client,
+    url: &str,
+    timeout_secs: u64,
+) -> Option<String> {
     let response = client
         .get(url)
         .timeout(Duration::from_secs(timeout_secs))
@@ -533,9 +541,7 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
             if e.raw_os_error() == Some(32) {
                 for _ in 0..5 {
                     tokio::time::sleep(Duration::from_millis(200)).await;
-                    spawn_result = Command::new(&installer)
-                        .args(["/S", "/R"])
-                        .spawn();
+                    spawn_result = Command::new(&installer).args(["/S", "/R"]).spawn();
                     if spawn_result.is_ok() {
                         break;
                     }

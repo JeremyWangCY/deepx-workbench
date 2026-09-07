@@ -169,7 +169,9 @@ fn aligned_peer_packages(app: &AppHandle, version: &str) -> Vec<String> {
     packages
         .into_iter()
         .map(|package| {
-            if package == "@deepseek-ai/cordis-plugin-group" || !package.starts_with("@deepseek-ai/dsh") {
+            if package == "@deepseek-ai/cordis-plugin-group"
+                || !package.starts_with("@deepseek-ai/dsh")
+            {
                 package
             } else {
                 format!("{package}@{version}")
