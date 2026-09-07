@@ -1,7 +1,8 @@
 use crate::{
-    configure_runtime_environment, dsh_entry, emit_progress, ensure_legacy_preset_compatibility,
-    harness_auth_cookie, harness_package_manifest, healthy, hidden, install_runtime,
-    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin,
+    configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
+    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility, harness_auth_cookie,
+    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
+    marketplace_version, migrate_private_plugins, node_bin, profile_dir,
     repair_marketplace_metadata, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
     stop_harness_service, update_runtime, valid_runtime, write_no_browser_patch,
 };
@@ -12,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Serialize)]
@@ -59,25 +61,94 @@ fn package_version(manifest: std::path::PathBuf) -> Option<String> {
 }
 
 #[tauri::command]
-pub fn window_action(app: AppHandle, action: String) -> Result<(), String> {
+pub fn window_action(app: AppHandle, action: String) -> Result<Option<usize>, String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "主窗口不存在".to_string())?;
-    let result = match action.as_str() {
-        "minimize" => window.minimize(),
+    match action.as_str() {
+        "minimize" => {
+            window.minimize().map_err(|error| error.to_string())?;
+            Ok(None)
+        }
         "toggle_maximize" => {
             let maximized = window.is_maximized().map_err(|error| error.to_string())?;
             if maximized {
-                window.unmaximize()
+                window.unmaximize().map_err(|error| error.to_string())?;
             } else {
-                window.maximize()
+                window.maximize().map_err(|error| error.to_string())?;
             }
+            Ok(None)
         }
-        "close" => window.close(),
-        "start_dragging" => window.start_dragging(),
-        _ => return Err(format!("不支持的窗口操作: {action}")),
-    };
-    result.map_err(|error| error.to_string())
+        "close" => {
+            window.close().map_err(|error| error.to_string())?;
+            Ok(None)
+        }
+        "start_dragging" => {
+            window.start_dragging().map_err(|error| error.to_string())?;
+            Ok(None)
+        }
+        "open_devtools" | "toggle_devtools" => {
+            if window.is_devtools_open() {
+                window.close_devtools();
+            } else {
+                window.open_devtools();
+            }
+            Ok(None)
+        }
+        "open_dsh_home" => {
+            let path = dsh_home(&app)?;
+            let _ = fs::create_dir_all(&path);
+            open_path_in_explorer(&app, &path);
+            Ok(None)
+        }
+        "open_plugins_dir" => {
+            let path = profile_dir(&app)?;
+            let _ = fs::create_dir_all(&path);
+            open_path_in_explorer(&app, &path);
+            Ok(None)
+        }
+        "open_skills_dir" => {
+            let home = app.path().home_dir().map_err(|error| error.to_string())?;
+            let path = home.join(".agents/skills");
+            let _ = fs::create_dir_all(&path);
+            open_path_in_explorer(&app, &path);
+            Ok(None)
+        }
+        "open_log_file" => {
+            let path = runtime_dir(&app).join("harness-startup.log");
+            if !path.exists() {
+                let _ = fs::write(&path, "");
+            }
+            open_path_in_explorer(&app, &path);
+            Ok(None)
+        }
+        "repair_plugins" => {
+            repair_marketplace_metadata(&app)?;
+            Ok(None)
+        }
+        "migrate_codex_skills" => {
+            let count = ensure_cross_harness_compatibility(&app)?;
+            Ok(Some(count))
+        }
+        _ => Err(format!("不支持的窗口操作: {action}")),
+    }
+}
+
+fn open_path_in_explorer(app: &AppHandle, path: &std::path::Path) {
+    if app.opener().open_path(path.to_string_lossy(), None::<&str>).is_err() {
+        #[cfg(windows)]
+        {
+            let _ = Command::new("explorer").arg(path).spawn();
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = Command::new("open").arg(path).spawn();
+        }
+        #[cfg(all(not(windows), not(target_os = "macos")))]
+        {
+            let _ = Command::new("xdg-open").arg(path).spawn();
+        }
+    }
 }
 
 #[tauri::command]
@@ -103,21 +174,33 @@ fn version_status(current: Option<String>, latest: Option<String>) -> VersionSta
     }
 }
 
-async fn npm_latest_release(client: &reqwest::Client, package: &str) -> Option<String> {
-    client
-        .get(format!(
-            "https://registry.npmjs.org/{}/latest",
-            package.replace('/', "%2f")
-        ))
+async fn fetch_npm_version(client: &reqwest::Client, url: &str, timeout_secs: u64) -> Option<String> {
+    let response = client
+        .get(url)
+        .timeout(Duration::from_secs(timeout_secs))
         .send()
         .await
-        .ok()?
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    response
         .json::<serde_json::Value>()
         .await
         .ok()?
         .get("version")
         .and_then(|value| value.as_str())
         .map(str::to_owned)
+}
+
+async fn npm_latest_release(client: &reqwest::Client, package: &str) -> Option<String> {
+    let encoded = package.replace('/', "%2f");
+    let primary_url = format!("https://registry.npmjs.org/{encoded}/latest");
+    if let Some(version) = fetch_npm_version(client, &primary_url, 6).await {
+        return Some(version);
+    }
+    let fallback_url = format!("https://registry.npmmirror.com/{encoded}/latest");
+    fetch_npm_version(client, &fallback_url, 10).await
 }
 
 async fn github_latest(client: &reqwest::Client) -> Option<String> {

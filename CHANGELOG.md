@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.69] - 2026-09-07
+
+### Added
+
+- Added developer tools & quick access directories to the DeepX settings panel: users can now open the configuration directory (~/.dsh), plugins directory (Web Profile), skills directory (.agents/skills), inspect startup logs (harness-startup.log), and repair plugin metadata directly with one click.
+- Added F12 keyboard shortcut to toggle WebView2 developer tools (window.open_devtools()).
+- Added cross-Harness skill compatibility (ensure_cross_harness_compatibility / migrate_codex_skills): provides an on-demand "迁移 Codex 技能" button in the settings panel to discover and link/copy existing skills from ~/.codex/skills to ~/.agents/skills (skipping the .system directory) with migration count feedback. The migration was adjusted from automatic execution at startup to an on-demand manual button in the settings panel, allowing users to choose whether and when to migrate.
+- Added dynamic peer dependency discovery for Harness upgrades: aligned_peer_packages and prepare-runtime.ps1 now dynamically inspect @deepseek-ai/dsh package manifest (dependencies and peerDependencies) to automatically discover and align future @deepseek-ai/* modular packages alongside base peers.
+- Added domestic npm mirror fallback (https://registry.npmmirror.com): npm_latest_release now automatically falls back to npmmirror when registry.npmjs.org fails or times out, preventing update check hangs in mainland network environments.
+
+### Fixed
+
+- Enhanced legacy agent preset compatibility (ensure_legacy_preset_compatibility): made standard <-> code bi-directional across both runtime presets and user-level ~/.dsh/.agent-presets directories.
+- Injected DSH_AGENTS_HOME pointing to ~/.agents and GIT_TERMINAL_PROMPT=0 into the runtime environment to prevent silent terminal prompt deadlocks during git plugin operations.
+- Enhanced repair_marketplace_metadata to automatically clean up orphaned lock files and temporary files (such as .pnpm-lock.yaml.tmp).
+
 ## [0.1.68] - 2026-09-07
 
 ### Fixed

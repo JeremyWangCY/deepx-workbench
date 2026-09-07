@@ -74,11 +74,32 @@ $dshManifest = Join-Path $buildDestination "node_modules\@deepseek-ai\dsh\packag
 if (-not (Test-Path $dsh) -or -not (Test-Path $dshManifest)) {
     throw "Bundled DeepSeek Harness entry point is missing"
 }
-$dshVersion = (Get-Content -LiteralPath $dshManifest -Raw | ConvertFrom-Json).version
+$dshManifestData = Get-Content -LiteralPath $dshManifest -Raw | ConvertFrom-Json
+$dshVersion = $dshManifestData.version
 if ([string]::IsNullOrWhiteSpace($dshVersion)) {
     throw "Bundled DeepSeek Harness version is missing"
 }
-$versionedPeers = $peerNames | ForEach-Object { "$_@$dshVersion" }
+$extractedPeers = [System.Collections.Generic.List[string]]::new()
+foreach ($p in $peerNames) {
+    if (-not $extractedPeers.Contains($p)) { [void]$extractedPeers.Add($p) }
+}
+foreach ($section in @("peerDependencies", "dependencies")) {
+    if ($dshManifestData.$section) {
+        foreach ($prop in $dshManifestData.$section.PSObject.Properties) {
+            $name = $prop.Name
+            if ($name -like "@deepseek-ai/*" -and $name -ne "@deepseek-ai/dsh" -and -not $extractedPeers.Contains($name)) {
+                [void]$extractedPeers.Add($name)
+            }
+        }
+    }
+}
+$versionedPeers = $extractedPeers | ForEach-Object {
+    if ($_ -like "@deepseek-ai/cordis*" -or -not ($_ -like "@deepseek-ai/dsh*")) {
+        $_
+    } else {
+        "$_@$dshVersion"
+    }
+}
 & $node $npm $npmOptions $versionedPeers
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to align bundled DeepSeek Harness dependencies"

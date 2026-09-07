@@ -78,7 +78,7 @@ pub(crate) fn harness_package_manifest(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join("node_modules/@deepseek-ai/dsh/package.json")
 }
 
-fn dsh_home(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn dsh_home(app: &AppHandle) -> Result<PathBuf, String> {
     let home = app.path().home_dir().map_err(|error| error.to_string())?;
     Ok(home.join(".dsh"))
 }
@@ -118,6 +118,10 @@ pub(crate) fn configure_runtime_environment(
     command.env("COREPACK_HOME", runtime_dir(app).join("corepack"));
     command.env("PNPM_HOME", runtime_dir(app).join("bin"));
     command.env("npm_config_node_linker", "hoisted");
+    if let Ok(home) = app.path().home_dir() {
+        command.env("DSH_AGENTS_HOME", home.join(".agents"));
+    }
+    command.env("GIT_TERMINAL_PROMPT", "0");
     Ok(())
 }
 
@@ -144,12 +148,29 @@ fn harness_version(app: &AppHandle) -> Result<String, String> {
         .ok_or_else(|| "Harness 版本信息无效".to_string())
 }
 
-fn aligned_peer_packages(version: &str) -> Vec<String> {
-    REQUIRED_DSH_PEERS
-        .iter()
+fn aligned_peer_packages(app: &AppHandle, version: &str) -> Vec<String> {
+    let mut packages: Vec<String> = REQUIRED_DSH_PEERS.iter().map(|s| s.to_string()).collect();
+    if let Ok(manifest_content) = fs::read_to_string(harness_package_manifest(app)) {
+        if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_content) {
+            for section in ["peerDependencies", "dependencies"] {
+                if let Some(deps) = manifest.get(section).and_then(|v| v.as_object()) {
+                    for key in deps.keys() {
+                        if key.starts_with("@deepseek-ai/")
+                            && key != "@deepseek-ai/dsh"
+                            && !packages.contains(key)
+                        {
+                            packages.push(key.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    packages
+        .into_iter()
         .map(|package| {
-            if *package == "@deepseek-ai/cordis-plugin-group" {
-                (*package).to_string()
+            if package == "@deepseek-ai/cordis-plugin-group" || !package.starts_with("@deepseek-ai/dsh") {
+                package
             } else {
                 format!("{package}@{version}")
             }
@@ -189,6 +210,20 @@ pub(crate) fn repair_marketplace_metadata(app: &AppHandle) -> Result<(), String>
     }
     if virtual_store.is_dir() {
         fs::remove_dir_all(virtual_store).map_err(|error| error.to_string())?;
+    }
+    if let Ok(entries) = fs::read_dir(&profile) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.ends_with(".tmp") || name_str.ends_with(".lock.tmp") {
+                if path.is_dir() {
+                    let _ = fs::remove_dir_all(&path);
+                } else {
+                    let _ = fs::remove_file(&path);
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -518,7 +553,7 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
         .arg(npm_bin(&app))
         .args(install_options)
         .arg(runtime_dir(&app))
-        .args(aligned_peer_packages(&version))
+        .args(aligned_peer_packages(&app, &version))
         .current_dir(runtime_dir(&app));
     run_output_with_timeout(peer_command, Duration::from_secs(300))
         .map_err(|error| format!("Harness 依赖更新失败: {error}"))?;
@@ -763,12 +798,82 @@ pub(crate) fn ensure_legacy_preset_compatibility(app: &AppHandle) -> Result<(), 
     let code = base.join("code");
     if standard.is_dir() && !code.exists() {
         let _ = copy_directory(&standard, &code);
+    } else if code.is_dir() && !standard.exists() {
+        let _ = copy_directory(&code, &standard);
     }
     if let Ok(home) = dsh_home(app) {
-        let user_code = home.join(".agent-presets/code");
-        if standard.is_dir() && !user_code.exists() {
-            let _ = copy_directory(&standard, &user_code);
+        let user_presets = home.join(".agent-presets");
+        let user_standard = user_presets.join("standard");
+        let user_code = user_presets.join("code");
+
+        if user_standard.is_dir() && !user_code.exists() {
+            let _ = copy_directory(&user_standard, &user_code);
+        } else if user_code.is_dir() && !user_standard.exists() {
+            let _ = copy_directory(&user_code, &user_standard);
+        }
+
+        if standard.is_dir() {
+            if !user_code.exists() {
+                let _ = copy_directory(&standard, &user_code);
+            }
+            if !user_standard.exists() {
+                let _ = copy_directory(&standard, &user_standard);
+            }
+        } else if code.is_dir() {
+            if !user_standard.exists() {
+                let _ = copy_directory(&code, &user_standard);
+            }
+            if !user_code.exists() {
+                let _ = copy_directory(&code, &user_code);
+            }
         }
     }
     Ok(())
+}
+
+pub(crate) fn ensure_cross_harness_compatibility(app: &AppHandle) -> Result<usize, String> {
+    let home = match app.path().home_dir() {
+        Ok(home) => home,
+        Err(_) => return Ok(0),
+    };
+    let codex_skills = home.join(".codex/skills");
+    if !codex_skills.is_dir() {
+        return Ok(0);
+    }
+    let agents_skills = home.join(".agents/skills");
+    if let Err(e) = fs::create_dir_all(&agents_skills) {
+        return Err(format!("创建技能目录失败: {e}"));
+    }
+    let mut count = 0;
+    if let Ok(entries) = fs::read_dir(&codex_skills) {
+        for entry in entries.flatten() {
+            let file_name = entry.file_name();
+            if file_name == ".system" {
+                continue;
+            }
+            let source = entry.path();
+            if !source.is_dir() {
+                continue;
+            }
+            let target = agents_skills.join(&file_name);
+            if target.symlink_metadata().is_err() {
+                #[cfg(windows)]
+                let success = if std::os::windows::fs::symlink_dir(&source, &target).is_ok() {
+                    true
+                } else {
+                    copy_directory(&source, &target).is_ok()
+                };
+                #[cfg(not(windows))]
+                let success = if std::os::unix::fs::symlink(&source, &target).is_ok() {
+                    true
+                } else {
+                    copy_directory(&source, &target).is_ok()
+                };
+                if success {
+                    count += 1;
+                }
+            }
+        }
+    }
+    Ok(count)
 }

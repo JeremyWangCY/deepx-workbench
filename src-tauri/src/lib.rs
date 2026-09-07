@@ -58,7 +58,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     + '.deepx-win{width:44px!important;height:100%!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;transition:background .12s,color .12s!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}'
     + '.deepx-panel{position:fixed!important;top:48px!important;left:8px;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:8px!important}.deepx-title{font-weight:650!important}.deepx-refresh,.deepx-panel-close{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:14px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.deepx-panel-close:hover{background:#f0f2f5!important;color:#202124!important}'
     + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-sec{margin-top:8px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important}.deepx-sec-title{font-size:11px!important;font-weight:600!important;color:#8a94a6!important;margin-bottom:4px!important;text-transform:uppercase!important;letter-spacing:.5px!important}.deepx-badge{display:inline-flex!important;align-items:center!important;gap:4px!important;color:#107c41!important;font-size:12px!important;font-weight:600!important}.deepx-badge::before{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:#107c41!important}.deepx-badge-busy{color:#d97706!important}.deepx-badge-busy::before{background:#d97706!important}.deepx-badge-err{color:#c23d3d!important}.deepx-badge-err::before{background:#c23d3d!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-btn-sub{background:#f0f2f5!important;color:#202124!important}.deepx-btn-sub:hover{background:#e4e7eb!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
-    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html{padding-top:40px!important;box-sizing:border-box!important}#root{height:100%!important;max-height:100%!important;overflow:hidden!important;box-sizing:border-box!important}[class*="_overlay"]:not([class*="overlayAnchor"]){top:40px!important;height:calc(100vh - 40px)!important;box-sizing:border-box!important;padding:24px 20px 20px!important}[class*="_panel"]{max-height:calc(100vh - 88px)!important}';
+    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html{padding-top:40px!important;box-sizing:border-box!important}#root{height:100%!important;max-height:100%!important;overflow:hidden!important;box-sizing:border-box!important}[class*="_overlay"]:not([class*="overlayAnchor"]){top:40px!important;height:calc(100vh - 40px)!important;box-sizing:border-box!important;padding:24px 20px 20px!important}[class*="_panel"]{max-height:calc(100vh - 88px)!important}.deepx-quick-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:6px!important}.deepx-quick-grid .deepx-btn{margin-top:0!important;padding:6px 4px!important;font-size:12px!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}';
   window.addEventListener('scroll', function () {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
       window.scrollTo(0, 0);
@@ -223,9 +223,19 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       + '<div class="deepx-row"><span>Harness 地址</span><span style="font-family:Consolas,monospace">127.0.0.1:3080</span></div>'
       + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge' + (isHarness ? '' : ' deepx-badge-err') + '">' + (isHarness ? '运行中' : '未连接') + '</span></div>'
       + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness 服务</button></div>'
+      + '<div class="deepx-sec"><div class="deepx-sec-title">常用目录与快捷操作</div>'
+      + '<div class="deepx-quick-grid">'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-dsh-btn" title="~/.dsh">打开配置目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-plugins-btn" title="Web Profile">打开插件目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-skills-btn" title=".agents/skills">打开技能目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-log-btn" title="harness-startup.log">查看启动日志</button>'
+      + '</div>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-repair-btn">修复插件环境</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-migrate-skills-btn">迁移 Codex 技能</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">关于</div>'
       + '<div class="deepx-row"><span>版本</span><span class="deepx-settings-ver">' + ver + '</span></div>'
       + '<div class="deepx-row"><span>运行环境</span><span>WebView2 / Tauri</span></div>'
+      + '<div class="deepx-row"><span>快捷键</span><span>F12 开发者工具</span></div>'
       + '<div class="deepx-row"><span>关闭按钮行为</span><span>最小化到系统托盘</span></div></div>';
     var ri = getInvoke();
     if (ri) {
@@ -264,6 +274,59 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
           setTimeout(function () {
             if (rBtn) { rBtn.disabled = false; rBtn.textContent = '重启 Harness 服务'; }
             if (badge && badge.textContent === '正在重启') { badge.className = 'deepx-badge'; badge.textContent = '运行中'; }
+          }, 3000);
+        }
+      };
+    }
+    const openDshBtn = settingsPanel.querySelector('.deepx-open-dsh-btn');
+    if (openDshBtn) { openDshBtn.onclick = function () { win('open_dsh_home'); }; }
+    const openPluginsBtn = settingsPanel.querySelector('.deepx-open-plugins-btn');
+    if (openPluginsBtn) { openPluginsBtn.onclick = function () { win('open_plugins_dir'); }; }
+    const openSkillsBtn = settingsPanel.querySelector('.deepx-open-skills-btn');
+    if (openSkillsBtn) { openSkillsBtn.onclick = function () { win('open_skills_dir'); }; }
+    const openLogBtn = settingsPanel.querySelector('.deepx-open-log-btn');
+    if (openLogBtn) { openLogBtn.onclick = function () { win('open_log_file'); }; }
+    const repairBtn = settingsPanel.querySelector('.deepx-repair-btn');
+    if (repairBtn) {
+      repairBtn.onclick = async function () {
+        var ri = getInvoke();
+        if (!ri || repairBtn.disabled) { return; }
+        repairBtn.disabled = true;
+        repairBtn.textContent = '正在修复...';
+        try {
+          await ri('window_action', { action: 'repair_plugins' });
+          repairBtn.textContent = '修复完成';
+        } catch (e) {
+          repairBtn.textContent = '修复失败: ' + e;
+        } finally {
+          setTimeout(function () {
+            if (repairBtn) { repairBtn.disabled = false; repairBtn.textContent = '修复插件环境'; }
+          }, 2500);
+        }
+      };
+    }
+    const migrateSkillsBtn = settingsPanel.querySelector('.deepx-migrate-skills-btn');
+    if (migrateSkillsBtn) {
+      migrateSkillsBtn.onclick = async function () {
+        var ri = getInvoke();
+        if (!ri || migrateSkillsBtn.disabled) { return; }
+        migrateSkillsBtn.disabled = true;
+        migrateSkillsBtn.textContent = '正在检查/迁移...';
+        try {
+          var res = await ri('window_action', { action: 'migrate_codex_skills' });
+          if (typeof res === 'number') {
+            migrateSkillsBtn.textContent = res > 0 ? ('迁移完成 (已迁移 ' + res + ' 个技能)') : '迁移完成 (无新技能)';
+          } else {
+            migrateSkillsBtn.textContent = '迁移完成';
+          }
+        } catch (e) {
+          migrateSkillsBtn.textContent = '迁移失败: ' + e;
+        } finally {
+          setTimeout(function () {
+            if (migrateSkillsBtn) {
+              migrateSkillsBtn.disabled = false;
+              migrateSkillsBtn.textContent = '迁移 Codex 技能';
+            }
           }, 3000);
         }
       };
@@ -394,6 +457,10 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   mountToolbar();
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'F12') {
+      e.preventDefault();
+      win('open_devtools');
+    }
     if (e.key === 'Escape') {
       if (panel) { panel.remove(); panel = null; }
       if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; }
@@ -417,9 +484,10 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
 mod commands;
 mod runtime;
 pub(crate) use runtime::{
-    configure_runtime_environment, dsh_entry, emit_progress, ensure_legacy_preset_compatibility,
-    harness_auth_cookie, harness_package_manifest, healthy, hidden, install_runtime,
-    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin,
+    configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
+    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility, harness_auth_cookie,
+    harness_package_manifest, healthy, hidden, install_runtime, marketplace_installed,
+    marketplace_version, migrate_private_plugins, node_bin, profile_dir,
     repair_marketplace_metadata, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
     stop_harness_service, update_runtime, valid_runtime, write_no_browser_patch,
 };
