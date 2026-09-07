@@ -116,7 +116,10 @@ pub(crate) fn configure_runtime_environment(
         std::env::join_paths(paths).map_err(|error| error.to_string())?,
     );
     command.env("COREPACK_HOME", runtime_dir(app).join("corepack"));
-    command.env("PNPM_HOME", runtime_dir(app).join("bin"));
+    // Do NOT override PNPM_HOME to runtime_dir/bin: on Windows, pnpm derives its store
+    // path relative to PNPM_HOME, causing ERR_PNPM_UNEXPECTED_STORE mismatch against
+    // %LOCALAPPDATA%\pnpm\store\v11 recorded in node_modules/.modules.yaml.
+    // runtime_dir/bin is already first in PATH, so bundled pnpm is resolved directly.
     command.env("npm_config_node_linker", "hoisted");
     if let Ok(home) = app.path().home_dir() {
         command.env("DSH_AGENTS_HOME", home.join(".agents"));
