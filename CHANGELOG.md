@@ -12,17 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Added a persistent Harness supervisor: DeepX now retains process ownership, watches unexpected exits, detects repeated health failures, and automatically recovers the Harness with bounded exponential backoff while keeping the desktop shell alive.
 - Added transactional Harness updates: updates are prepared in an isolated `runtime.staging`, validated before activation, atomically swapped with the active runtime, and automatically rolled back to `runtime.previous` when the new Harness cannot start.
 - Added a separate `harness-supervisor.log` with spawn, health, exit, recovery, and rollback events; startup logs now append and rotate instead of being truncated on every launch.
+- Added DeepX-owned route memory so reconnecting after a Harness restart can return to the last WebView route without modifying Harness session storage; authentication query parameters are never persisted.
+- Added CI regression tests for Harness token redaction and route sanitization.
 
 ### Changed
 
-- Harness process management is now ownership-aware. DeepX only recognizes/stops the Web Harness launched from its own runtime entrypoint on port 3080, instead of terminating arbitrary listeners or unrelated DSH processes.
+- Harness process management is now ownership-aware and endpoint-driven. DeepX identifies its own Web Harness from the runtime entrypoint, DeepX patch, profile, and launch mode, then discovers the process's actual loopback listener instead of owning a fixed port.
+- DeepX now launches new Harness processes on an automatically selected free port and reconnects to existing older fixed-port instances during upgrades, eliminating port-3080 collisions without changing Harness itself.
 - Runtime staging excludes disposable pnpm store data and symlinks so update candidates cannot accidentally dereference links into profiles, temporary projects, or other user paths.
 - Runtime validation now checks required binaries, marker/package version agreement, and aligned DeepSeek Harness package versions before a staged runtime can become active.
 
 ### Fixed
 
 - Removed the invasive titlebar layout workaround that combined `html { padding-top: 40px }`, overlay-specific overrides, and periodic mutation of arbitrary fixed-position Harness DOM nodes. Harness pages are now inset once at the `#root` boundary while DeepX only maintains DeepX-owned toolbar nodes.
-- Fixed false-positive Harness health/ownership cases around port 3080, including Windows command-line path normalization and stale/unresponsive owned processes being restarted safely instead of spawning a duplicate listener.
+- Fixed false-positive Harness health/ownership cases by binding health checks to the listener owned by the exact DeepX-launched process, including Windows command-line path normalization and stale/unresponsive owned processes being restarted safely instead of spawning a duplicate listener.
+- Prevented Harness authentication tokens from being persisted in DeepX startup or page-load diagnostics: output is parsed in memory, token values are redacted before disk writes, and legacy startup logs are sanitized on the next launch.
+- Restricted authentication-cookie and route-memory commands to the WebView currently attached to DeepX's actual Harness endpoint, while keeping settings/status visibility available to the local DeepX shell.
+- Removed development-machine-specific diagnostic paths; WebView diagnostics are now opt-in, stored under DeepX's own app log directory, size-capped, and URL-redacted.
 - Prevented intentional Harness restart/update operations from racing the recovery watchdog or creating duplicate recovery loops.
 - Added interrupted-update boot recovery: if a transactional swap is interrupted after the old runtime was moved aside, DeepX restores a validated `runtime.previous` before falling back to reinstalling the bundled runtime.
 

@@ -3,9 +3,13 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::{
+        atomic::{AtomicU16, Ordering},
+        Mutex, OnceLock,
+    },
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Url};
 use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Clone, Serialize)]
@@ -15,6 +19,48 @@ pub struct Progress {
 }
 
 const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
+
+static HARNESS_PORT: AtomicU16 = AtomicU16::new(0);
+static HARNESS_BOOT_URL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn harness_boot_url_state() -> &'static Mutex<Option<String>> {
+    HARNESS_BOOT_URL.get_or_init(|| Mutex::new(None))
+}
+
+pub(crate) fn remember_harness_port(port: u16) {
+    if port > 0 {
+        HARNESS_PORT.store(port, Ordering::SeqCst);
+    }
+}
+
+pub(crate) fn remember_harness_launch_url(url: &str) -> Option<u16> {
+    let parsed = Url::parse(url).ok()?;
+    if parsed.scheme() != "http" || parsed.host_str() != Some("127.0.0.1") {
+        return None;
+    }
+    let port = parsed.port()?;
+    remember_harness_port(port);
+    if parsed.query_pairs().any(|(key, _)| key == "token") {
+        if let Ok(mut state) = harness_boot_url_state().lock() {
+            *state = Some(url.to_string());
+        }
+    }
+    Some(port)
+}
+
+pub(crate) fn take_harness_boot_url() -> Option<String> {
+    harness_boot_url_state()
+        .lock()
+        .ok()
+        .and_then(|mut state| state.take())
+}
+
+pub(crate) fn clear_harness_endpoint() {
+    HARNESS_PORT.store(0, Ordering::SeqCst);
+    if let Ok(mut state) = harness_boot_url_state().lock() {
+        *state = None;
+    }
+}
 
 const REQUIRED_DSH_PEERS: [&str; 28] = [
     "@deepseek-ai/cordis-plugin-group",
@@ -806,16 +852,36 @@ fn powershell_single_quoted(value: &str) -> String {
     value.replace('\'', "''")
 }
 
+fn harness_match_paths(app: &AppHandle) -> Option<(String, String)> {
+    let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
+    let patch = no_browser_patch_path(app)
+        .ok()?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Some((
+        powershell_single_quoted(&entry),
+        powershell_single_quoted(&patch),
+    ))
+}
+
 pub(crate) fn harness_process_running(app: &AppHandle) -> bool {
     #[cfg(windows)]
     {
-        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
-        let entry = powershell_single_quoted(&entry);
+        let Some((entry, patch)) = harness_match_paths(app) else {
+            return false;
+        };
         let script = format!(
             r#"$entry = '{entry}'
+$patch = '{patch}'
 $match = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
     Where-Object {{
-        $_.CommandLine -and $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
+        $line = $_.CommandLine
+        $normalized = if ($line) {{ $line.Replace('\', '/') }} else {{ '' }}
+        $line -and
+        $normalized.Contains($entry) -and
+        $normalized.Contains($patch) -and
+        $line.Contains('--profile web') -and
+        $line.Contains('--no-open')
     }} |
     Select-Object -First 1
 if ($match) {{ Write-Output '1' }}"#
@@ -832,56 +898,115 @@ if ($match) {{ Write-Output '1' }}"#
     #[cfg(not(windows))]
     {
         let _ = app;
-        true
+        HARNESS_PORT.load(Ordering::SeqCst) > 0
     }
 }
 
-pub(crate) fn harness_owns_port(app: &AppHandle) -> bool {
+pub(crate) fn harness_child_port(pid: u32) -> Option<u16> {
     #[cfg(windows)]
     {
-        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
-        let entry = powershell_single_quoted(&entry);
+        let script = format!(
+            "$listener = Get-NetTCPConnection -State Listen -OwningProcess {pid} -ErrorAction SilentlyContinue | Where-Object {{ $_.LocalAddress -eq '127.0.0.1' -or $_.LocalAddress -eq '::1' }} | Select-Object -First 1; if ($listener) {{ Write-Output $listener.LocalPort }}"
+        );
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        hidden(&mut command);
+        let port = command
+            .output()
+            .ok()
+            .and_then(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .parse::<u16>()
+                    .ok()
+            })
+            .filter(|port| *port > 0)?;
+        remember_harness_port(port);
+        Some(port)
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = pid;
+        let port = HARNESS_PORT.load(Ordering::SeqCst);
+        (port > 0).then_some(port)
+    }
+}
+
+pub(crate) fn harness_port(app: &AppHandle) -> Option<u16> {
+    #[cfg(windows)]
+    {
+        let Some((entry, patch)) = harness_match_paths(app) else {
+            return None;
+        };
         let script = format!(
             r#"$entry = '{entry}'
-$pids = Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue |
-    Select-Object -ExpandProperty OwningProcess -Unique
-if ($pids) {{
-    $match = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
-        Where-Object {{
-            $pids -contains $_.ProcessId -and
-            $_.CommandLine -and
-            $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
-        }} |
+$patch = '{patch}'
+$process = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {{
+        $line = $_.CommandLine
+        $normalized = if ($line) {{ $line.Replace('\', '/') }} else {{ '' }}
+        $line -and
+        $normalized.Contains($entry) -and
+        $normalized.Contains($patch) -and
+        $line.Contains('--profile web') -and
+        $line.Contains('--no-open')
+    }} |
+    Select-Object -First 1
+if ($process) {{
+    $listener = Get-NetTCPConnection -State Listen -OwningProcess $process.ProcessId -ErrorAction SilentlyContinue |
+        Where-Object {{ $_.LocalAddress -eq '127.0.0.1' -or $_.LocalAddress -eq '::1' }} |
         Select-Object -First 1
-    if ($match) {{ Write-Output '1' }}
+    if ($listener) {{ Write-Output $listener.LocalPort }}
 }}"#
         );
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        command
+        let port = command
             .output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
-            .unwrap_or(false)
+            .ok()
+            .and_then(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .parse::<u16>()
+                    .ok()
+            })
+            .filter(|port| *port > 0)?;
+        remember_harness_port(port);
+        Some(port)
     }
 
     #[cfg(not(windows))]
     {
         let _ = app;
-        true
+        let port = HARNESS_PORT.load(Ordering::SeqCst);
+        (port > 0).then_some(port)
     }
+}
+
+pub(crate) fn harness_base_url(app: &AppHandle) -> Option<String> {
+    harness_port(app).map(|port| format!("http://127.0.0.1:{port}/"))
 }
 
 pub(crate) fn stop_harness_service(app: &AppHandle) {
     #[cfg(windows)]
     {
-        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
-        let entry = powershell_single_quoted(&entry);
+        let Some((entry, patch)) = harness_match_paths(app) else {
+            return;
+        };
         let script = format!(
             r#"$entry = '{entry}'
+$patch = '{patch}'
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
     Where-Object {{
-        $_.CommandLine -and $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
+        $line = $_.CommandLine
+        $normalized = if ($line) {{ $line.Replace('\', '/') }} else {{ '' }}
+        $line -and
+        $normalized.Contains($entry) -and
+        $normalized.Contains($patch) -and
+        $line.Contains('--profile web') -and
+        $line.Contains('--no-open')
     }} |
     Select-Object -ExpandProperty ProcessId -Unique |
     Where-Object {{ $_ -and $_ -ne $PID }} |
@@ -897,12 +1022,13 @@ Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyCon
     {
         let _ = app;
     }
+
+    clear_harness_endpoint();
 }
 
-pub(crate) async fn healthy(app: &AppHandle) -> bool {
-    let _ = app;
+pub(crate) async fn healthy_on_port(port: u16) -> bool {
     let response = match reqwest::Client::new()
-        .get("http://127.0.0.1:3080/")
+        .get(format!("http://127.0.0.1:{port}/"))
         .timeout(Duration::from_secs(2))
         .send()
         .await
@@ -923,7 +1049,16 @@ pub(crate) async fn healthy(app: &AppHandle) -> bool {
     status.is_success() || status.is_redirection()
 }
 
+pub(crate) async fn healthy(app: &AppHandle) -> bool {
+    match harness_port(app) {
+        Some(port) => healthy_on_port(port).await,
+        None => false,
+    }
+}
+
 pub(crate) fn harness_auth_cookie(app: &AppHandle) -> Option<String> {
+    let port = harness_port(app)?;
+    let authority = format!("127.0.0.1:{port}");
     let cred_path = dsh_home(app).ok()?.join(".credentials.yaml");
     if !cred_path.exists() {
         return None;
@@ -938,7 +1073,8 @@ try {
   if (!match) process.exit(1);
   function b64u(b) { return b.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
   function unb64u(s) { return Buffer.from(s.replaceAll("-", "+").replaceAll("_", "/") + "=".repeat((4 - s.length % 4) % 4), "base64"); }
-  const authority = "127.0.0.1:3080";
+  const authority = process.argv[2];
+if (!authority) process.exit(1);
   const secret = unb64u(match[1]);
   const name = "dsh-auth-" + b64u(crypto.createHash("sha256").update(authority).digest());
   const now = Date.now();
@@ -953,7 +1089,7 @@ try {
     let node = node_bin(app);
     let mut command = Command::new(node);
     hidden(&mut command);
-    command.arg("-e").arg(script).arg(cred_path);
+    command.arg("-e").arg(script).arg(cred_path).arg(authority);
     let output = command.output().ok()?;
     if !output.status.success() {
         return None;

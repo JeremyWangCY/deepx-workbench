@@ -43,6 +43,9 @@ jobs:
       - name: Lint Rust
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
+      - name: Test Rust library
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
       - name: Build application
         run: pnpm tauri build --no-bundle
 
