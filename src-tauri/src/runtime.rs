@@ -91,10 +91,6 @@ pub(crate) fn profile_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dsh_home(app)?.join("profiles/web"))
 }
 
-pub(crate) fn npm_bin(app: &AppHandle) -> PathBuf {
-    node_dir(app).join("node_modules/npm/bin/npm-cli.js")
-}
-
 pub(crate) fn pnpm_package_manifest(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join("node_modules/pnpm/package.json")
 }
@@ -103,11 +99,12 @@ pub(crate) fn pnpm_cmd(app: &AppHandle) -> PathBuf {
     runtime_dir(app).join("bin/pnpm.cmd")
 }
 
-pub(crate) fn configure_runtime_environment(
+fn configure_runtime_environment_at(
     command: &mut Command,
     app: &AppHandle,
+    root: &Path,
 ) -> Result<(), String> {
-    let mut paths = vec![runtime_dir(app).join("bin"), node_dir(app)];
+    let mut paths = vec![root.join("bin"), root.join("node")];
     if let Some(existing) = std::env::var_os("PATH") {
         paths.extend(std::env::split_paths(&existing));
     }
@@ -115,7 +112,7 @@ pub(crate) fn configure_runtime_environment(
         "PATH",
         std::env::join_paths(paths).map_err(|error| error.to_string())?,
     );
-    command.env("COREPACK_HOME", runtime_dir(app).join("corepack"));
+    command.env("COREPACK_HOME", root.join("corepack"));
     // Do NOT override PNPM_HOME to runtime_dir/bin: on Windows, pnpm derives its store
     // path relative to PNPM_HOME, causing ERR_PNPM_UNEXPECTED_STORE mismatch against
     // %LOCALAPPDATA%\pnpm\store\v11 recorded in node_modules/.modules.yaml.
@@ -126,6 +123,13 @@ pub(crate) fn configure_runtime_environment(
     }
     command.env("GIT_TERMINAL_PROMPT", "0");
     Ok(())
+}
+
+pub(crate) fn configure_runtime_environment(
+    command: &mut Command,
+    app: &AppHandle,
+) -> Result<(), String> {
+    configure_runtime_environment_at(command, app, &runtime_dir(app))
 }
 
 pub(crate) fn runtime_marker(app: &AppHandle) -> PathBuf {
@@ -140,9 +144,8 @@ pub(crate) fn valid_runtime(app: &AppHandle) -> bool {
         && runtime_marker(app).is_file()
 }
 
-fn harness_version(app: &AppHandle) -> Result<String, String> {
-    let manifest =
-        fs::read_to_string(harness_package_manifest(app)).map_err(|error| error.to_string())?;
+fn package_version_at(manifest_path: &Path) -> Result<String, String> {
+    let manifest = fs::read_to_string(manifest_path).map_err(|error| error.to_string())?;
     serde_json::from_str::<serde_json::Value>(&manifest)
         .map_err(|error| error.to_string())?
         .get("version")
@@ -151,9 +154,9 @@ fn harness_version(app: &AppHandle) -> Result<String, String> {
         .ok_or_else(|| "Harness 版本信息无效".to_string())
 }
 
-fn aligned_peer_packages(app: &AppHandle, version: &str) -> Vec<String> {
+fn aligned_peer_packages_from_manifest(manifest_path: &Path, version: &str) -> Vec<String> {
     let mut packages: Vec<String> = REQUIRED_DSH_PEERS.iter().map(|s| s.to_string()).collect();
-    if let Ok(manifest_content) = fs::read_to_string(harness_package_manifest(app)) {
+    if let Ok(manifest_content) = fs::read_to_string(manifest_path) {
         if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_content) {
             for section in ["peerDependencies", "dependencies"] {
                 if let Some(deps) = manifest.get(section).and_then(|v| v.as_object()) {
@@ -421,8 +424,78 @@ fn copy_directory(source: &Path, destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn copy_runtime_for_update(source: &Path, destination: &Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|error| error.to_string())?;
+    for entry in fs::read_dir(source).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry.file_name();
+        let name_text = name.to_string_lossy();
+        if name_text == "harness-startup.log"
+            || name_text == "harness-startup.previous.log"
+            || name_text == "harness-supervisor.log"
+            || name_text.starts_with("reinstall-backup-")
+        {
+            continue;
+        }
+
+        // pnpm's content-addressable store is disposable cache data and can contain
+        // junctions/symlinks back into profiles or temporary projects. Never carry it
+        // into a transactional runtime candidate; npm/pnpm will recreate what it needs.
+        if source.ends_with("bin") && name_text == "store" {
+            continue;
+        }
+
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        // Do not dereference runtime symlinks while staging an update. Copying their
+        // targets would make the candidate depend on unrelated user/profile paths.
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        let target = destination.join(&name);
+        if file_type.is_dir() {
+            copy_runtime_for_update(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target).map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+fn recover_interrupted_runtime_swap(app: &AppHandle) -> Result<bool, String> {
+    if valid_runtime(app) {
+        return Ok(false);
+    }
+
+    let current = runtime_dir(app);
+    let previous = app_data(app).join("runtime.previous");
+    if !previous.is_dir() || validate_runtime_at(&previous).is_err() {
+        return Ok(false);
+    }
+
+    let failed = app_data(app).join("runtime.failed");
+    if failed.exists() {
+        fs::remove_dir_all(&failed).map_err(|error| error.to_string())?;
+    }
+    if current.exists() {
+        fs::rename(&current, &failed)
+            .map_err(|error| format!("保存中断更新留下的运行时失败: {error}"))?;
+    }
+    if let Err(error) = fs::rename(&previous, &current) {
+        if failed.exists() {
+            let _ = fs::rename(&failed, &current);
+        }
+        return Err(format!("恢复中断更新前的 Harness 运行时失败: {error}"));
+    }
+    Ok(true)
+}
+
 pub(crate) async fn install_runtime(app: AppHandle) -> Result<(), String> {
+    let restored = recover_interrupted_runtime_swap(&app)?;
     if valid_runtime(&app) {
+        if restored {
+            emit_progress(&app, 90, "已恢复上一次更新前的 Harness 运行时");
+        }
         return Ok(());
     }
 
@@ -538,12 +611,87 @@ async fn download_runtime_archive(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn runtime_node_bin_at(root: &Path) -> PathBuf {
+    root.join(if cfg!(windows) {
+        "node/node.exe"
+    } else {
+        "node/bin/node"
+    })
+}
+
+fn runtime_npm_bin_at(root: &Path) -> PathBuf {
+    root.join("node/node_modules/npm/bin/npm-cli.js")
+}
+
+fn runtime_dsh_manifest_at(root: &Path) -> PathBuf {
+    root.join("node_modules/@deepseek-ai/dsh/package.json")
+}
+
+fn validate_runtime_at(root: &Path) -> Result<String, String> {
+    let required = [
+        runtime_node_bin_at(root),
+        root.join("node_modules/@deepseek-ai/dsh/lib/bin.js"),
+        root.join("bin/pnpm.cmd"),
+        root.join("node_modules/pnpm/package.json"),
+        root.join(RUNTIME_MARKER),
+    ];
+    if let Some(missing) = required.iter().find(|path| !path.is_file()) {
+        return Err(format!("更新后的 Harness 运行时缺少 {}", missing.display()));
+    }
+
+    let manifest_path = runtime_dsh_manifest_at(root);
+    let version = package_version_at(&manifest_path)?;
+    let marker =
+        fs::read_to_string(root.join(RUNTIME_MARKER)).map_err(|error| error.to_string())?;
+    if marker.trim().trim_start_matches('﻿') != version {
+        return Err(format!(
+            "Harness 运行时版本标记不一致: marker={} package={version}",
+            marker.trim()
+        ));
+    }
+
+    for spec in aligned_peer_packages_from_manifest(&manifest_path, &version) {
+        if !spec.starts_with("@deepseek-ai/dsh") {
+            continue;
+        }
+        let suffix = format!("@{version}");
+        let package = spec.strip_suffix(&suffix).unwrap_or(&spec);
+        let package_manifest = root.join("node_modules").join(package).join("package.json");
+        let installed = package_version_at(&package_manifest)
+            .map_err(|error| format!("{package} 校验失败: {error}"))?;
+        if installed != version {
+            return Err(format!(
+                "{package} 版本不一致: installed={installed} expected={version}"
+            ));
+        }
+    }
+
+    Ok(version)
+}
+
 pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
     if !valid_runtime(&app) {
         install_runtime(app.clone()).await?;
     }
 
-    emit_progress(&app, 52, "正在更新 Harness...");
+    let current = runtime_dir(&app);
+    let staging = app_data(&app).join("runtime.staging");
+    let previous = app_data(&app).join("runtime.previous");
+    let failed = app_data(&app).join("runtime.failed");
+    if staging.exists() {
+        fs::remove_dir_all(&staging).map_err(|error| error.to_string())?;
+    }
+    if failed.exists() {
+        let _ = fs::remove_dir_all(&failed);
+    }
+
+    emit_progress(&app, 45, "正在创建隔离更新副本...");
+    let source = current.clone();
+    let destination = staging.clone();
+    tauri::async_runtime::spawn_blocking(move || copy_runtime_for_update(&source, &destination))
+        .await
+        .map_err(|error| format!("创建 Harness 更新副本异常: {error}"))??;
+
     let install_options = [
         "install",
         "--no-audit",
@@ -558,64 +706,221 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
         "8",
         "--prefix",
     ];
-    let mut command = Command::new(node_bin(&app));
-    command
-        .arg(npm_bin(&app))
-        .args(install_options)
-        .arg(runtime_dir(&app))
-        .arg("@deepseek-ai/dsh@latest")
-        .current_dir(runtime_dir(&app));
-    run_output_with_timeout(command, Duration::from_secs(300))
-        .map_err(|error| format!("Harness 更新失败: {error}"))?;
 
-    let version = harness_version(&app)?;
-    let mut peer_command = Command::new(node_bin(&app));
-    peer_command
-        .arg(npm_bin(&app))
+    emit_progress(&app, 55, "正在隔离更新 Harness...");
+    let staging_node = runtime_node_bin_at(&staging);
+    let staging_npm = runtime_npm_bin_at(&staging);
+    let mut command = Command::new(&staging_node);
+    command
+        .arg(&staging_npm)
         .args(install_options)
-        .arg(runtime_dir(&app))
-        .args(aligned_peer_packages(&app, &version))
-        .current_dir(runtime_dir(&app));
-    run_output_with_timeout(peer_command, Duration::from_secs(300))
-        .map_err(|error| format!("Harness 依赖更新失败: {error}"))?;
-    fs::write(runtime_marker(&app), version).map_err(|error| error.to_string())?;
-    emit_progress(&app, 90, "Harness 已更新");
+        .arg(&staging)
+        .arg("@deepseek-ai/dsh@latest")
+        .current_dir(&staging);
+    configure_runtime_environment_at(&mut command, &app, &staging)?;
+    if let Err(error) = run_output_with_timeout(command, Duration::from_secs(300)) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(format!("Harness 隔离更新失败，当前版本未受影响: {error}"));
+    }
+
+    let manifest_path = runtime_dsh_manifest_at(&staging);
+    let version = match package_version_at(&manifest_path) {
+        Ok(version) => version,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging);
+            return Err(format!("读取更新后的 Harness 版本失败: {error}"));
+        }
+    };
+
+    emit_progress(&app, 68, format!("正在对齐 Harness {version} 依赖..."));
+    let mut peer_command = Command::new(&staging_node);
+    peer_command
+        .arg(&staging_npm)
+        .args(install_options)
+        .arg(&staging)
+        .args(aligned_peer_packages_from_manifest(
+            &manifest_path,
+            &version,
+        ))
+        .current_dir(&staging);
+    configure_runtime_environment_at(&mut peer_command, &app, &staging)?;
+    if let Err(error) = run_output_with_timeout(peer_command, Duration::from_secs(300)) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(format!(
+            "Harness 依赖隔离更新失败，当前版本未受影响: {error}"
+        ));
+    }
+
+    fs::write(staging.join(RUNTIME_MARKER), &version).map_err(|error| error.to_string())?;
+    if let Err(error) = validate_runtime_at(&staging) {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(format!("Harness 更新校验失败，当前版本未受影响: {error}"));
+    }
+
+    emit_progress(&app, 84, "正在原子切换 Harness 运行时...");
+    if previous.exists() {
+        fs::remove_dir_all(&previous)
+            .map_err(|error| format!("无法清理上一版 Harness 备份，未执行切换: {error}"))?;
+    }
+    fs::rename(&current, &previous)
+        .map_err(|error| format!("无法备份当前 Harness，未执行切换: {error}"))?;
+    if let Err(error) = fs::rename(&staging, &current) {
+        let restore = fs::rename(&previous, &current);
+        return Err(match restore {
+            Ok(()) => format!("切换新版 Harness 失败，已恢复旧版本: {error}"),
+            Err(restore_error) => {
+                format!("切换新版 Harness 失败且自动恢复失败: {error}; restore={restore_error}")
+            }
+        });
+    }
+
+    emit_progress(&app, 90, format!("Harness {version} 已更新并保留回滚副本"));
     Ok(())
 }
-pub(crate) fn stop_harness_service() {
+
+pub(crate) fn rollback_runtime(app: &AppHandle) -> Result<bool, String> {
+    let current = runtime_dir(app);
+    let previous = app_data(app).join("runtime.previous");
+    if !previous.is_dir() {
+        return Ok(false);
+    }
+
+    let failed = app_data(app).join("runtime.failed");
+    if failed.exists() {
+        fs::remove_dir_all(&failed).map_err(|error| error.to_string())?;
+    }
+    if current.exists() {
+        fs::rename(&current, &failed)
+            .map_err(|error| format!("保存失败的 Harness 运行时失败: {error}"))?;
+    }
+    if let Err(error) = fs::rename(&previous, &current) {
+        if failed.exists() {
+            let _ = fs::rename(&failed, &current);
+        }
+        return Err(format!("恢复上一版 Harness 失败: {error}"));
+    }
+    Ok(true)
+}
+
+fn powershell_single_quoted(value: &str) -> String {
+    value.replace('\'', "''")
+}
+
+pub(crate) fn harness_process_running(app: &AppHandle) -> bool {
     #[cfg(windows)]
     {
-        let script = r#"
-$pids = @()
-$pids += Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue |
-    Select-Object -ExpandProperty OwningProcess -Unique
-$pids += Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like '*@deepseek-ai/dsh/lib/bin.js*' } |
-    Select-Object -ExpandProperty ProcessId
-$pids | Where-Object { $_ -and $_ -ne $PID } | Sort-Object -Unique | ForEach-Object {
-    Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
-}
-"#;
+        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
+        let entry = powershell_single_quoted(&entry);
+        let script = format!(
+            r#"$entry = '{entry}'
+$match = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {{
+        $_.CommandLine -and $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
+    }} |
+    Select-Object -First 1
+if ($match) {{ Write-Output '1' }}"#
+        );
         let mut command = Command::new("powershell.exe");
-        command.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+        command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        let _ = command.output();
+        return command
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        true
     }
 }
 
-pub(crate) async fn healthy() -> bool {
-    reqwest::Client::new()
+pub(crate) fn harness_owns_port(app: &AppHandle) -> bool {
+    #[cfg(windows)]
+    {
+        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
+        let entry = powershell_single_quoted(&entry);
+        let script = format!(
+            r#"$entry = '{entry}'
+$pids = Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
+if ($pids) {{
+    $match = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {{
+            $pids -contains $_.ProcessId -and
+            $_.CommandLine -and
+            $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
+        }} |
+        Select-Object -First 1
+    if ($match) {{ Write-Output '1' }}
+}}"#
+        );
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        hidden(&mut command);
+        return command
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        true
+    }
+}
+
+pub(crate) fn stop_harness_service(app: &AppHandle) {
+    #[cfg(windows)]
+    {
+        let entry = dsh_entry(app).to_string_lossy().replace('\\', "/");
+        let entry = powershell_single_quoted(&entry);
+        let script = format!(
+            r#"$entry = '{entry}'
+Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object {{
+        $_.CommandLine -and $_.CommandLine.Replace('\', '/').Contains($entry) -and $_.CommandLine.Contains('--port 3080')
+    }} |
+    Select-Object -ExpandProperty ProcessId -Unique |
+    Where-Object {{ $_ -and $_ -ne $PID }} |
+    ForEach-Object {{ Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }}"#
+        );
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        hidden(&mut command);
+        let _ = command.output();
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+    }
+}
+
+pub(crate) async fn healthy(app: &AppHandle) -> bool {
+    let _ = app;
+    let response = match reqwest::Client::new()
         .get("http://127.0.0.1:3080/")
         .timeout(Duration::from_secs(2))
         .send()
         .await
-        .map(|response| {
-            let status = response.status();
-            status.is_success()
-                || status.is_redirection()
-                || status == reqwest::StatusCode::UNAUTHORIZED
-        })
-        .unwrap_or(false)
+    {
+        Ok(response) => response,
+        Err(_) => return false,
+    };
+
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED {
+        return response
+            .text()
+            .await
+            .map(|body| body.contains("dsh web authentication required"))
+            .unwrap_or(false);
+    }
+
+    status.is_success() || status.is_redirection()
 }
 
 pub(crate) fn harness_auth_cookie(app: &AppHandle) -> Option<String> {

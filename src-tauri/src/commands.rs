@@ -1,21 +1,170 @@
 use crate::{
     configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
     ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
-    ensure_profile_store_compatibility, harness_auth_cookie, harness_package_manifest, healthy,
-    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, profile_dir, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
+    ensure_profile_store_compatibility, harness_auth_cookie, harness_owns_port,
+    harness_package_manifest, harness_process_running, healthy, hidden, install_runtime,
+    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin, profile_dir,
+    repair_marketplace_metadata, rollback_runtime, run_output_with_timeout, runtime_dir,
     seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
     write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
     fs,
-    process::Command,
-    time::{Duration, Instant},
+    io::Write,
+    process::{Child, Command},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager, Url};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncWriteExt;
+
+static HARNESS_MAINTENANCE_DEPTH: AtomicUsize = AtomicUsize::new(0);
+static HARNESS_RECOVERY_ACTIVE: AtomicBool = AtomicBool::new(false);
+static HARNESS_LAUNCH_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+struct MaintenanceGuard;
+
+impl Drop for MaintenanceGuard {
+    fn drop(&mut self) {
+        HARNESS_MAINTENANCE_DEPTH.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+fn maintenance_guard() -> MaintenanceGuard {
+    HARNESS_MAINTENANCE_DEPTH.fetch_add(1, Ordering::SeqCst);
+    MaintenanceGuard
+}
+
+struct AtomicFlagGuard(&'static AtomicBool);
+
+impl Drop for AtomicFlagGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn try_acquire_flag(flag: &'static AtomicBool) -> Option<AtomicFlagGuard> {
+    flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .ok()
+        .map(|_| AtomicFlagGuard(flag))
+}
+
+fn unix_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+fn append_supervisor_log(app: &AppHandle, detail: impl AsRef<str>) {
+    let path = runtime_dir(app).join("harness-supervisor.log");
+    if let Ok(mut log) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(log, "{} {}", unix_millis(), detail.as_ref());
+    }
+}
+
+fn rotate_harness_log(log_path: &std::path::Path) {
+    const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
+    let should_rotate = fs::metadata(log_path)
+        .map(|metadata| metadata.len() >= MAX_LOG_BYTES)
+        .unwrap_or(false);
+    if !should_rotate {
+        return;
+    }
+    let previous = log_path.with_file_name("harness-startup.previous.log");
+    let _ = fs::remove_file(&previous);
+    let _ = fs::rename(log_path, previous);
+}
+
+fn watch_harness_exit(app: AppHandle, mut child: Child) {
+    let pid = child.id();
+    std::thread::spawn(move || {
+        let status = child.wait();
+        match status {
+            Ok(status) => {
+                append_supervisor_log(&app, format!("EXIT pid={pid} code={:?}", status.code()))
+            }
+            Err(error) => {
+                append_supervisor_log(&app, format!("EXIT_WAIT_ERROR pid={pid} error={error}"))
+            }
+        }
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) == 0 {
+            tauri::async_runtime::spawn(async move {
+                recover_harness(app).await;
+            });
+        }
+    });
+}
+
+async fn recover_harness(app: AppHandle) {
+    if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 || !valid_runtime(&app) {
+        return;
+    }
+    let Some(_recovery_guard) = try_acquire_flag(&HARNESS_RECOVERY_ACTIVE) else {
+        return;
+    };
+
+    const BACKOFF_SECONDS: [u64; 5] = [1, 2, 5, 10, 30];
+    for (index, delay) in BACKOFF_SECONDS.into_iter().enumerate() {
+        if healthy(&app).await && harness_owns_port(&app) {
+            return;
+        }
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 {
+            append_supervisor_log(&app, "RECOVERY_ABORT maintenance");
+            return;
+        }
+
+        append_supervisor_log(
+            &app,
+            format!("RECOVERY_WAIT attempt={} delay={}s", index + 1, delay),
+        );
+        tokio::time::sleep(Duration::from_secs(delay)).await;
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 {
+            append_supervisor_log(&app, "RECOVERY_ABORT maintenance");
+            return;
+        }
+
+        match launch_harness(app.clone()).await {
+            Ok(()) => {
+                if healthy(&app).await && harness_owns_port(&app) {
+                    append_supervisor_log(&app, format!("RECOVERY_OK attempt={}", index + 1));
+                    let _ = show_harness(app.clone()).await;
+                    return;
+                }
+            }
+            Err(error) => append_supervisor_log(
+                &app,
+                format!("RECOVERY_FAIL attempt={} error={error}", index + 1),
+            ),
+        }
+    }
+
+    append_supervisor_log(&app, "RECOVERY_GAVE_UP attempts=5");
+}
+
+pub(crate) fn start_harness_watchdog(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(12)).await;
+        let mut consecutive_failures = 0_u8;
+        loop {
+            if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 || !valid_runtime(&app) {
+                consecutive_failures = 0;
+            } else if healthy(&app).await && harness_owns_port(&app) {
+                consecutive_failures = 0;
+            } else {
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                if consecutive_failures >= 2 {
+                    append_supervisor_log(&app, "WATCHDOG_UNHEALTHY consecutive=2");
+                    recover_harness(app.clone()).await;
+                    consecutive_failures = 0;
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+    });
+}
 
 #[derive(Debug, Serialize)]
 pub struct RuntimeStatus {
@@ -160,7 +309,7 @@ fn open_path_in_explorer(app: &AppHandle, path: &std::path::Path) {
 pub async fn runtime_status(app: AppHandle) -> RuntimeStatus {
     RuntimeStatus {
         ready: valid_runtime(&app),
-        service_running: healthy().await,
+        service_running: healthy(&app).await && harness_owns_port(&app),
         auth_cookie: harness_auth_cookie(&app),
         version: package_version(harness_package_manifest(&app)),
     }
@@ -252,14 +401,34 @@ pub async fn update_status(app: AppHandle) -> UpdateStatus {
     }
 }
 
+fn child_owns_harness_port(pid: u32) -> bool {
+    #[cfg(windows)]
+    {
+        let script = format!(
+            "$match = Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue | Where-Object {{ $_.OwningProcess -eq {pid} }} | Select-Object -First 1; if ($match) {{ Write-Output '1' }}"
+        );
+        let mut command = Command::new("powershell.exe");
+        command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
+        hidden(&mut command);
+        return command
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = pid;
+        true
+    }
+}
+
 async fn wait_for_harness(
-    child: &mut std::process::Child,
+    app: &AppHandle,
+    child: &mut Child,
     log_path: &std::path::Path,
 ) -> Result<(), String> {
     for _ in 0..180 {
-        if healthy().await {
-            return Ok(());
-        }
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
             let log = fs::read_to_string(log_path).unwrap_or_default();
             let detail = log
@@ -276,16 +445,19 @@ async fn wait_for_harness(
                 format!("Harness 启动失败：{}", detail.trim())
             });
         }
+        if healthy(app).await && child_owns_harness_port(child.id()) {
+            return Ok(());
+        }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
     let _ = child.kill();
     Err("Harness 启动超时".to_string())
 }
 
-async fn stop_current_harness() -> Result<(), String> {
-    stop_harness_service();
+async fn stop_current_harness(app: &AppHandle) -> Result<(), String> {
+    stop_harness_service(app);
     for _ in 0..20 {
-        if !healthy().await {
+        if !harness_process_running(app) {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
@@ -293,16 +465,41 @@ async fn stop_current_harness() -> Result<(), String> {
     Err("旧的 Harness 服务停止超时".to_string())
 }
 
+async fn wait_for_concurrent_launch(app: &AppHandle) -> Result<(), String> {
+    for _ in 0..60 {
+        if healthy(app).await && harness_owns_port(app) {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    Err("Harness 正在由另一个任务启动，但等待超时".to_string())
+}
+
 #[tauri::command]
 pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
+    let Some(_launch_guard) = try_acquire_flag(&HARNESS_LAUNCH_ACTIVE) else {
+        return wait_for_concurrent_launch(&app).await;
+    };
+
     let migrated = migrate_private_plugins(&app)?;
+    let _migration_guard = migrated.then(maintenance_guard);
     let _ = ensure_legacy_preset_compatibility(&app);
     let _ = ensure_profile_store_compatibility(&app);
-    if healthy().await {
+
+    let service_healthy = healthy(&app).await;
+    if service_healthy {
+        if !harness_owns_port(&app) {
+            return Err(
+                "端口 3080 已由另一个服务占用；DeepX 不会结束或接管非本应用启动的进程".to_string(),
+            );
+        }
         if !migrated {
             return Ok(());
         }
-        stop_current_harness().await?;
+        stop_current_harness(&app).await?;
+    } else if harness_process_running(&app) {
+        append_supervisor_log(&app, "OWNED_PROCESS_UNHEALTHY stopping before restart");
+        stop_current_harness(&app).await?;
     }
     if migrated {
         repair_marketplace_metadata(&app)?;
@@ -323,7 +520,18 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
         "3080",
     ]);
     let log_path = runtime_dir(&app).join("harness-startup.log");
-    let log = fs::File::create(&log_path).map_err(|error| error.to_string())?;
+    rotate_harness_log(&log_path);
+    let mut log = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|error| error.to_string())?;
+    let _ = writeln!(
+        log,
+        "\n=== DeepX Harness start ts={} deepx={} ===",
+        unix_millis(),
+        app.package_info().version
+    );
     hidden(&mut command);
     configure_runtime_environment(&mut command, &app)?;
     let mut child = command
@@ -335,7 +543,19 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
         .spawn()
         .map_err(|error| error.to_string())?;
 
-    wait_for_harness(&mut child, &log_path).await
+    let pid = child.id();
+    append_supervisor_log(&app, format!("SPAWN pid={pid}"));
+    match wait_for_harness(&app, &mut child, &log_path).await {
+        Ok(()) => {
+            append_supervisor_log(&app, format!("HEALTHY pid={pid}"));
+            watch_harness_exit(app.clone(), child);
+            Ok(())
+        }
+        Err(error) => {
+            append_supervisor_log(&app, format!("START_FAILED pid={pid} error={error}"));
+            Err(error)
+        }
+    }
 }
 
 fn get_harness_url(app: &AppHandle) -> String {
@@ -567,13 +787,14 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
 }
 #[tauri::command]
 pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     install_runtime(app.clone()).await?;
     if !marketplace_installed(&app) {
         emit_progress(&app, 92, "正在准备插件市场...");
         install_marketplace(app.clone()).await?;
     }
     emit_progress(&app, 94, "正在启动...");
-    if !healthy().await {
+    if !healthy(&app).await {
         launch_harness(app.clone()).await?;
     }
     show_harness(app).await
@@ -581,18 +802,49 @@ pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn update_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 25, "正在更新...");
-    stop_current_harness().await?;
+    stop_current_harness(&app).await?;
     update_runtime(app.clone()).await?;
-    emit_progress(&app, 94, "正在启动...");
-    launch_harness(app.clone()).await?;
-    show_harness(app).await
+    emit_progress(&app, 94, "正在验证新版 Harness 启动...");
+
+    match launch_harness(app.clone()).await {
+        Ok(()) => show_harness(app).await,
+        Err(update_error) => {
+            append_supervisor_log(
+                &app,
+                format!("UPDATE_START_FAILED error={update_error}; rolling back"),
+            );
+            emit_progress(&app, 72, "新版 Harness 启动失败，正在自动回滚...");
+            match rollback_runtime(&app) {
+                Ok(true) => match launch_harness(app.clone()).await {
+                    Ok(()) => {
+                        let _ = show_harness(app.clone()).await;
+                        append_supervisor_log(&app, "UPDATE_ROLLBACK_OK");
+                        Err(format!(
+                            "新版 Harness 未通过启动验证，DeepX 已自动恢复上一版。原始错误：{update_error}"
+                        ))
+                    }
+                    Err(rollback_launch_error) => Err(format!(
+                        "新版 Harness 启动失败，已恢复上一版文件，但旧版重新启动也失败。新版错误：{update_error}；旧版错误：{rollback_launch_error}"
+                    )),
+                },
+                Ok(false) => Err(format!(
+                    "新版 Harness 启动失败，且没有可用的上一版回滚副本：{update_error}"
+                )),
+                Err(rollback_error) => Err(format!(
+                    "新版 Harness 启动失败且自动回滚失败。新版错误：{update_error}；回滚错误：{rollback_error}"
+                )),
+            }
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn restart_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 15, "正在重启 Harness...");
-    stop_current_harness().await?;
+    stop_current_harness(&app).await?;
     emit_progress(&app, 70, "正在启动...");
     launch_harness(app.clone()).await?;
     show_harness(app).await
@@ -608,14 +860,15 @@ pub fn marketplace_status(app: AppHandle) -> MarketplaceStatus {
 
 #[tauri::command]
 pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 15, "正在准备插件市场...");
     if !valid_runtime(&app) {
         install_runtime(app.clone()).await?;
     }
     let migrated = migrate_private_plugins(&app)?;
-    if migrated && healthy().await {
+    if migrated && healthy(&app).await {
         emit_progress(&app, 35, "正在切换到共享插件目录...");
-        stop_current_harness().await?;
+        stop_current_harness(&app).await?;
     }
     if migrated {
         repair_marketplace_metadata(&app)?;
@@ -641,7 +894,7 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
     if !marketplace_installed(&app) {
         return Err("插件市场命令已完成，但未在 web 配置中找到 dshmarket".to_string());
     }
-    if !healthy().await {
+    if !healthy(&app).await {
         launch_harness(app.clone()).await?;
         show_harness(app.clone()).await?;
     }
