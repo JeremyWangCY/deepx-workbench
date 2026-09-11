@@ -262,6 +262,7 @@ pub struct RuntimeStatus {
     pub endpoint: Option<String>,
     pub port: Option<u16>,
     pub auth_cookie: Option<String>,
+    pub deepx_version: String,
     pub version: Option<String>,
 }
 
@@ -507,6 +508,7 @@ pub async fn runtime_status(app: AppHandle, webview: WebviewWindow) -> RuntimeSt
         endpoint: port.map(|port| format!("127.0.0.1:{port}")),
         port,
         auth_cookie,
+        deepx_version: app.package_info().version.to_string(),
         version: package_version(harness_package_manifest(&app)),
     }
 }
