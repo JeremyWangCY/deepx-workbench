@@ -1,26 +1,266 @@
 use crate::{
-    configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
+    clear_harness_endpoint, configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
     ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
-    ensure_profile_store_compatibility, harness_auth_cookie, harness_package_manifest, healthy,
+    ensure_profile_store_compatibility, harness_auth_cookie, harness_base_url, harness_child_port,
+    harness_package_manifest, harness_port, harness_process_running, healthy, healthy_on_port,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, profile_dir, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
-    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
+    node_bin, profile_dir, remember_harness_launch_url, repair_marketplace_metadata,
+    rollback_runtime, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
+    stop_harness_service, take_harness_boot_url, update_runtime, valid_runtime,
     write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
     fs,
-    process::Command,
-    time::{Duration, Instant},
+    io::{BufRead, BufReader, Read, Write},
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use tauri::{AppHandle, Emitter, Manager, Url};
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncWriteExt;
+
+static HARNESS_MAINTENANCE_DEPTH: AtomicUsize = AtomicUsize::new(0);
+static HARNESS_RECOVERY_ACTIVE: AtomicBool = AtomicBool::new(false);
+static HARNESS_LAUNCH_ACTIVE: AtomicBool = AtomicBool::new(false);
+static HARNESS_ROUTE_RESTORE_PENDING: AtomicBool = AtomicBool::new(false);
+
+struct MaintenanceGuard;
+
+impl Drop for MaintenanceGuard {
+    fn drop(&mut self) {
+        HARNESS_MAINTENANCE_DEPTH.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+fn maintenance_guard() -> MaintenanceGuard {
+    HARNESS_MAINTENANCE_DEPTH.fetch_add(1, Ordering::SeqCst);
+    MaintenanceGuard
+}
+
+struct AtomicFlagGuard(&'static AtomicBool);
+
+impl Drop for AtomicFlagGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn try_acquire_flag(flag: &'static AtomicBool) -> Option<AtomicFlagGuard> {
+    flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .ok()
+        .map(|_| AtomicFlagGuard(flag))
+}
+
+fn unix_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+}
+
+fn append_supervisor_log(app: &AppHandle, detail: impl AsRef<str>) {
+    let path = runtime_dir(app).join("harness-supervisor.log");
+    if let Ok(mut log) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(log, "{} {}", unix_millis(), detail.as_ref());
+    }
+}
+
+fn rotate_harness_log(log_path: &Path) {
+    const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
+    let should_rotate = fs::metadata(log_path)
+        .map(|metadata| metadata.len() >= MAX_LOG_BYTES)
+        .unwrap_or(false);
+    if !should_rotate {
+        return;
+    }
+    let previous = log_path.with_file_name("harness-startup.previous.log");
+    let _ = fs::remove_file(&previous);
+    let _ = fs::rename(log_path, previous);
+}
+
+fn redact_harness_line(line: &str) -> String {
+    let mut redacted = line.to_string();
+    let needle = "token=";
+    let mut search_from = 0;
+    while let Some(relative) = redacted[search_from..].find(needle) {
+        let value_start = search_from + relative + needle.len();
+        let value_end = redacted[value_start..]
+            .find(|ch: char| ch.is_whitespace() || matches!(ch, '&' | '"' | '\'' | ')' | ']' | '}'))
+            .map(|offset| value_start + offset)
+            .unwrap_or(redacted.len());
+        if value_end <= value_start {
+            break;
+        }
+        redacted.replace_range(value_start..value_end, "<redacted>");
+        search_from = value_start + "<redacted>".len();
+    }
+    redacted
+}
+
+fn sanitize_harness_log_file(path: &Path) {
+    let Ok(original) = fs::read_to_string(path) else {
+        return;
+    };
+    let sanitized = original
+        .lines()
+        .map(redact_harness_line)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if sanitized != original.trim_end_matches(['\r', '\n']) {
+        let suffix = if original.ends_with('\n') { "\n" } else { "" };
+        let _ = fs::write(path, format!("{sanitized}{suffix}"));
+    }
+}
+
+fn capture_harness_launch_url(line: &str) {
+    let Some(start) = line.find("http://127.0.0.1:") else {
+        return;
+    };
+    let candidate = &line[start..];
+    let end = candidate
+        .find(|ch: char| ch.is_whitespace() || matches!(ch, '"' | '\'' | ')' | ']' | '}'))
+        .unwrap_or(candidate.len());
+    let url = &candidate[..end];
+    let _ = remember_harness_launch_url(url);
+}
+
+fn pipe_harness_output<R>(app: AppHandle, reader: R, log_path: PathBuf, stream_name: &'static str)
+where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut log = match fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+        {
+            Ok(log) => log,
+            Err(error) => {
+                append_supervisor_log(
+                    &app,
+                    format!("LOG_PIPE_OPEN_ERROR stream={stream_name} error={error}"),
+                );
+                return;
+            }
+        };
+        for line in BufReader::new(reader).lines() {
+            match line {
+                Ok(line) => {
+                    capture_harness_launch_url(&line);
+                    let _ = writeln!(log, "{}", redact_harness_line(&line));
+                    let _ = log.flush();
+                }
+                Err(error) => {
+                    append_supervisor_log(
+                        &app,
+                        format!("LOG_PIPE_READ_ERROR stream={stream_name} error={error}"),
+                    );
+                    break;
+                }
+            }
+        }
+    });
+}
+
+fn watch_harness_exit(app: AppHandle, mut child: Child) {
+    let pid = child.id();
+    std::thread::spawn(move || {
+        let status = child.wait();
+        match status {
+            Ok(status) => {
+                append_supervisor_log(&app, format!("EXIT pid={pid} code={:?}", status.code()))
+            }
+            Err(error) => {
+                append_supervisor_log(&app, format!("EXIT_WAIT_ERROR pid={pid} error={error}"))
+            }
+        }
+        clear_harness_endpoint();
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) == 0 {
+            tauri::async_runtime::spawn(async move {
+                recover_harness(app).await;
+            });
+        }
+    });
+}
+
+async fn recover_harness(app: AppHandle) {
+    if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 || !valid_runtime(&app) {
+        return;
+    }
+    let Some(_recovery_guard) = try_acquire_flag(&HARNESS_RECOVERY_ACTIVE) else {
+        return;
+    };
+
+    const BACKOFF_SECONDS: [u64; 5] = [1, 2, 5, 10, 30];
+    for (index, delay) in BACKOFF_SECONDS.into_iter().enumerate() {
+        if healthy(&app).await {
+            return;
+        }
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 {
+            append_supervisor_log(&app, "RECOVERY_ABORT maintenance");
+            return;
+        }
+
+        append_supervisor_log(
+            &app,
+            format!("RECOVERY_WAIT attempt={} delay={}s", index + 1, delay),
+        );
+        tokio::time::sleep(Duration::from_secs(delay)).await;
+        if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 {
+            append_supervisor_log(&app, "RECOVERY_ABORT maintenance");
+            return;
+        }
+
+        match launch_harness(app.clone()).await {
+            Ok(()) => {
+                if healthy(&app).await {
+                    append_supervisor_log(&app, format!("RECOVERY_OK attempt={}", index + 1));
+                    let _ = show_harness(app.clone()).await;
+                    return;
+                }
+            }
+            Err(error) => append_supervisor_log(
+                &app,
+                format!("RECOVERY_FAIL attempt={} error={error}", index + 1),
+            ),
+        }
+    }
+
+    append_supervisor_log(&app, "RECOVERY_GAVE_UP attempts=5");
+}
+
+pub(crate) fn start_harness_watchdog(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(12)).await;
+        let mut consecutive_failures = 0_u8;
+        loop {
+            if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0
+                || !valid_runtime(&app)
+                || healthy(&app).await
+            {
+                consecutive_failures = 0;
+            } else {
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                if consecutive_failures >= 2 {
+                    append_supervisor_log(&app, "WATCHDOG_UNHEALTHY consecutive=2");
+                    recover_harness(app.clone()).await;
+                    consecutive_failures = 0;
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
+    });
+}
 
 #[derive(Debug, Serialize)]
 pub struct RuntimeStatus {
     pub ready: bool,
     pub service_running: bool,
+    pub endpoint: Option<String>,
+    pub port: Option<u16>,
     pub auth_cookie: Option<String>,
     pub version: Option<String>,
 }
@@ -59,6 +299,101 @@ fn package_version(manifest: std::path::PathBuf) -> Option<String> {
         .ok()
         .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
     value?.get("version")?.as_str().map(str::to_owned)
+}
+
+fn harness_route_path(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|error| error.to_string())?
+        .join("harness-route.txt"))
+}
+
+fn sanitize_harness_route(route: &str) -> Option<String> {
+    if route.is_empty()
+        || route.len() > 4096
+        || !route.starts_with('/')
+        || route.chars().any(char::is_control)
+    {
+        return None;
+    }
+
+    let mut parsed = Url::parse(&format!("http://127.0.0.1{route}")).ok()?;
+    if parsed.host_str() != Some("127.0.0.1") {
+        return None;
+    }
+
+    let query_pairs = parsed
+        .query_pairs()
+        .filter(|(key, _)| key != "token")
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    parsed.set_query(None);
+    if !query_pairs.is_empty() {
+        let mut query = parsed.query_pairs_mut();
+        for (key, value) in query_pairs {
+            query.append_pair(&key, &value);
+        }
+    }
+
+    let mut sanitized = parsed.path().to_string();
+    if let Some(query) = parsed.query() {
+        sanitized.push('?');
+        sanitized.push_str(query);
+    }
+    if let Some(fragment) = parsed.fragment() {
+        sanitized.push('#');
+        sanitized.push_str(fragment);
+    }
+    Some(sanitized)
+}
+
+fn remembered_harness_route(app: &AppHandle) -> Option<String> {
+    let route = fs::read_to_string(harness_route_path(app).ok()?).ok()?;
+    sanitize_harness_route(route.trim())
+}
+
+fn caller_matches_harness(webview: &WebviewWindow, port: u16) -> bool {
+    webview.url().ok().is_some_and(|url| {
+        url.scheme() == "http" && url.host_str() == Some("127.0.0.1") && url.port() == Some(port)
+    })
+}
+
+#[tauri::command]
+pub fn remember_harness_route(
+    app: AppHandle,
+    webview: WebviewWindow,
+    route: String,
+) -> Result<(), String> {
+    let Some(port) = harness_port(&app) else {
+        return Ok(());
+    };
+    if !caller_matches_harness(&webview, port) {
+        return Ok(());
+    }
+    let Some(route) = sanitize_harness_route(&route) else {
+        return Ok(());
+    };
+    let path = harness_route_path(&app)?;
+    if fs::read_to_string(&path).ok().as_deref() == Some(route.as_str()) {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(path, route).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn take_harness_restore_route(app: AppHandle, webview: WebviewWindow) -> Option<String> {
+    let port = harness_port(&app)?;
+    if !caller_matches_harness(&webview, port) {
+        return None;
+    }
+    if !HARNESS_ROUTE_RESTORE_PENDING.swap(false, Ordering::SeqCst) {
+        return None;
+    }
+    remembered_harness_route(&app).filter(|route| route != "/")
 }
 
 #[tauri::command]
@@ -157,11 +492,21 @@ fn open_path_in_explorer(app: &AppHandle, path: &std::path::Path) {
 }
 
 #[tauri::command]
-pub async fn runtime_status(app: AppHandle) -> RuntimeStatus {
+pub async fn runtime_status(app: AppHandle, webview: WebviewWindow) -> RuntimeStatus {
+    let port = harness_port(&app);
+    let service_running = match port {
+        Some(port) => healthy_on_port(port).await,
+        None => false,
+    };
+    let auth_cookie = port
+        .filter(|port| caller_matches_harness(&webview, *port))
+        .and_then(|_| harness_auth_cookie(&app));
     RuntimeStatus {
         ready: valid_runtime(&app),
-        service_running: healthy().await,
-        auth_cookie: harness_auth_cookie(&app),
+        service_running,
+        endpoint: port.map(|port| format!("127.0.0.1:{port}")),
+        port,
+        auth_cookie,
         version: package_version(harness_package_manifest(&app)),
     }
 }
@@ -252,14 +597,8 @@ pub async fn update_status(app: AppHandle) -> UpdateStatus {
     }
 }
 
-async fn wait_for_harness(
-    child: &mut std::process::Child,
-    log_path: &std::path::Path,
-) -> Result<(), String> {
+async fn wait_for_harness(child: &mut Child, log_path: &Path) -> Result<(), String> {
     for _ in 0..180 {
-        if healthy().await {
-            return Ok(());
-        }
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
             let log = fs::read_to_string(log_path).unwrap_or_default();
             let detail = log
@@ -276,16 +615,21 @@ async fn wait_for_harness(
                 format!("Harness 启动失败：{}", detail.trim())
             });
         }
+        if let Some(port) = harness_child_port(child.id()) {
+            if healthy_on_port(port).await {
+                return Ok(());
+            }
+        }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
     let _ = child.kill();
     Err("Harness 启动超时".to_string())
 }
 
-async fn stop_current_harness() -> Result<(), String> {
-    stop_harness_service();
+async fn stop_current_harness(app: &AppHandle) -> Result<(), String> {
+    stop_harness_service(app);
     for _ in 0..20 {
-        if !healthy().await {
+        if !harness_process_running(app) {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
@@ -293,16 +637,36 @@ async fn stop_current_harness() -> Result<(), String> {
     Err("旧的 Harness 服务停止超时".to_string())
 }
 
+async fn wait_for_concurrent_launch(app: &AppHandle) -> Result<(), String> {
+    for _ in 0..60 {
+        if healthy(app).await {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    Err("Harness 正在由另一个任务启动，但等待超时".to_string())
+}
+
 #[tauri::command]
 pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
+    let Some(_launch_guard) = try_acquire_flag(&HARNESS_LAUNCH_ACTIVE) else {
+        return wait_for_concurrent_launch(&app).await;
+    };
+
     let migrated = migrate_private_plugins(&app)?;
+    let _migration_guard = migrated.then(maintenance_guard);
     let _ = ensure_legacy_preset_compatibility(&app);
     let _ = ensure_profile_store_compatibility(&app);
-    if healthy().await {
+
+    let service_healthy = healthy(&app).await;
+    if service_healthy {
         if !migrated {
             return Ok(());
         }
-        stop_current_harness().await?;
+        stop_current_harness(&app).await?;
+    } else if harness_process_running(&app) {
+        append_supervisor_log(&app, "OWNED_PROCESS_UNHEALTHY stopping before restart");
+        stop_current_harness(&app).await?;
     }
     if migrated {
         repair_marketplace_metadata(&app)?;
@@ -320,47 +684,71 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
         &no_browser_patch.to_string_lossy(),
         "--no-open",
         "--port",
-        "3080",
+        "0",
     ]);
     let log_path = runtime_dir(&app).join("harness-startup.log");
-    let log = fs::File::create(&log_path).map_err(|error| error.to_string())?;
+    let previous_log_path = runtime_dir(&app).join("harness-startup.previous.log");
+    sanitize_harness_log_file(&log_path);
+    sanitize_harness_log_file(&previous_log_path);
+    rotate_harness_log(&log_path);
+    let mut log = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .map_err(|error| error.to_string())?;
+    let _ = writeln!(
+        log,
+        "\n=== DeepX Harness start ts={} deepx={} ===",
+        unix_millis(),
+        app.package_info().version
+    );
+    let _ = log.flush();
+    drop(log);
     hidden(&mut command);
     configure_runtime_environment(&mut command, &app)?;
     let mut child = command
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::from(
-            log.try_clone().map_err(|error| error.to_string())?,
-        ))
-        .stderr(std::process::Stdio::from(log))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| error.to_string())?;
 
-    wait_for_harness(&mut child, &log_path).await
-}
-
-fn get_harness_url(app: &AppHandle) -> String {
-    let log_path = runtime_dir(app).join("harness-startup.log");
-    if let Ok(content) = fs::read_to_string(&log_path) {
-        for line in content.lines().rev() {
-            if let Some(idx) = line.find("http://127.0.0.1:3080/?token=") {
-                let url_part = &line[idx..];
-                let end = url_part
-                    .find(|c: char| c.is_whitespace() || c == ')' || c == '"')
-                    .unwrap_or(url_part.len());
-                return url_part[..end].to_string();
-            }
+    let pid = child.id();
+    if let Some(stdout) = child.stdout.take() {
+        pipe_harness_output(app.clone(), stdout, log_path.clone(), "stdout");
+    }
+    if let Some(stderr) = child.stderr.take() {
+        pipe_harness_output(app.clone(), stderr, log_path.clone(), "stderr");
+    }
+    append_supervisor_log(&app, format!("SPAWN pid={pid} port=dynamic"));
+    match wait_for_harness(&mut child, &log_path).await {
+        Ok(()) => {
+            let port = harness_child_port(pid).unwrap_or_default();
+            append_supervisor_log(&app, format!("HEALTHY pid={pid} port={port}"));
+            watch_harness_exit(app.clone(), child);
+            Ok(())
+        }
+        Err(error) => {
+            append_supervisor_log(&app, format!("START_FAILED pid={pid} error={error}"));
+            Err(error)
         }
     }
-    "http://127.0.0.1:3080/".to_string()
+}
+
+fn get_harness_url(app: &AppHandle) -> Result<String, String> {
+    let port = harness_port(app).ok_or_else(|| "Harness 尚未监听本地端口".to_string())?;
+    if let Some(url) = take_harness_boot_url() {
+        if Url::parse(&url).ok().and_then(|parsed| parsed.port()) == Some(port) {
+            return Ok(url);
+        }
+    }
+    harness_base_url(app).ok_or_else(|| "Harness endpoint 不可用".to_string())
 }
 
 async fn navigate_to_harness(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("主窗口不存在")?;
-    if let Some(cookie) = harness_auth_cookie(&app) {
-        let js = format!("try {{ document.cookie = '{cookie}; path=/; max-age=2592000; SameSite=Strict'; }} catch (e) {{}}");
-        let _ = window.eval(&js);
-    }
-    let target = get_harness_url(&app);
+    let target = get_harness_url(&app)?;
+    HARNESS_ROUTE_RESTORE_PENDING.store(true, Ordering::SeqCst);
     window
         .navigate(Url::parse(&target).map_err(|error| error.to_string())?)
         .map_err(|error| error.to_string())?;
@@ -381,17 +769,23 @@ pub async fn reload_harness(app: AppHandle) -> Result<(), String> {
 /// watchdog tick. Writes to the onload log only while the probe flag file
 /// exists, so shipping builds stay silent.
 #[tauri::command]
-pub fn toolbar_probe(diag: String) {
-    let flag = std::path::Path::new("C:\\Users\\Laptop\\AppData\\Local\\deepx-probe.flag");
-    if !flag.exists() {
+pub fn toolbar_probe(app: AppHandle, diag: String) {
+    let Ok(app_data) = app.path().app_data_dir() else {
+        return;
+    };
+    let flag = app_data.join(".deepx-probe.flag");
+    if !flag.is_file() {
         return;
     }
+    let Ok(log_dir) = app.path().app_log_dir() else {
+        return;
+    };
+    let _ = fs::create_dir_all(&log_dir);
     if let Ok(mut log) = fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
+        .open(log_dir.join("webview-onload.log"))
     {
-        use std::io::Write;
         let _ = writeln!(log, "PROBE {}", diag);
     }
 }
@@ -567,13 +961,14 @@ pub async fn update_deepx(app: AppHandle) -> Result<(), String> {
 }
 #[tauri::command]
 pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     install_runtime(app.clone()).await?;
     if !marketplace_installed(&app) {
         emit_progress(&app, 92, "正在准备插件市场...");
         install_marketplace(app.clone()).await?;
     }
     emit_progress(&app, 94, "正在启动...");
-    if !healthy().await {
+    if !healthy(&app).await {
         launch_harness(app.clone()).await?;
     }
     show_harness(app).await
@@ -581,18 +976,49 @@ pub async fn initialize_harness(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn update_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 25, "正在更新...");
-    stop_current_harness().await?;
+    stop_current_harness(&app).await?;
     update_runtime(app.clone()).await?;
-    emit_progress(&app, 94, "正在启动...");
-    launch_harness(app.clone()).await?;
-    show_harness(app).await
+    emit_progress(&app, 94, "正在验证新版 Harness 启动...");
+
+    match launch_harness(app.clone()).await {
+        Ok(()) => show_harness(app).await,
+        Err(update_error) => {
+            append_supervisor_log(
+                &app,
+                format!("UPDATE_START_FAILED error={update_error}; rolling back"),
+            );
+            emit_progress(&app, 72, "新版 Harness 启动失败，正在自动回滚...");
+            match rollback_runtime(&app) {
+                Ok(true) => match launch_harness(app.clone()).await {
+                    Ok(()) => {
+                        let _ = show_harness(app.clone()).await;
+                        append_supervisor_log(&app, "UPDATE_ROLLBACK_OK");
+                        Err(format!(
+                            "新版 Harness 未通过启动验证，DeepX 已自动恢复上一版。原始错误：{update_error}"
+                        ))
+                    }
+                    Err(rollback_launch_error) => Err(format!(
+                        "新版 Harness 启动失败，已恢复上一版文件，但旧版重新启动也失败。新版错误：{update_error}；旧版错误：{rollback_launch_error}"
+                    )),
+                },
+                Ok(false) => Err(format!(
+                    "新版 Harness 启动失败，且没有可用的上一版回滚副本：{update_error}"
+                )),
+                Err(rollback_error) => Err(format!(
+                    "新版 Harness 启动失败且自动回滚失败。新版错误：{update_error}；回滚错误：{rollback_error}"
+                )),
+            }
+        }
+    }
 }
 
 #[tauri::command]
 pub async fn restart_harness(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 15, "正在重启 Harness...");
-    stop_current_harness().await?;
+    stop_current_harness(&app).await?;
     emit_progress(&app, 70, "正在启动...");
     launch_harness(app.clone()).await?;
     show_harness(app).await
@@ -608,14 +1034,15 @@ pub fn marketplace_status(app: AppHandle) -> MarketplaceStatus {
 
 #[tauri::command]
 pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
+    let _maintenance = maintenance_guard();
     emit_progress(&app, 15, "正在准备插件市场...");
     if !valid_runtime(&app) {
         install_runtime(app.clone()).await?;
     }
     let migrated = migrate_private_plugins(&app)?;
-    if migrated && healthy().await {
+    if migrated && healthy(&app).await {
         emit_progress(&app, 35, "正在切换到共享插件目录...");
-        stop_current_harness().await?;
+        stop_current_harness(&app).await?;
     }
     if migrated {
         repair_marketplace_metadata(&app)?;
@@ -641,10 +1068,35 @@ pub async fn install_marketplace(app: AppHandle) -> Result<(), String> {
     if !marketplace_installed(&app) {
         return Err("插件市场命令已完成，但未在 web 配置中找到 dshmarket".to_string());
     }
-    if !healthy().await {
+    if !healthy(&app).await {
         launch_harness(app.clone()).await?;
         show_harness(app.clone()).await?;
     }
     emit_progress(&app, 100, "插件市场已就绪");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{redact_harness_line, sanitize_harness_route};
+
+    #[test]
+    fn harness_logs_redact_token_values() {
+        let line = "dsh web: http://127.0.0.1:51650/?token=secret-value&mode=web";
+        let redacted = redact_harness_line(line);
+        assert_eq!(
+            redacted,
+            "dsh web: http://127.0.0.1:51650/?token=<redacted>&mode=web"
+        );
+        assert!(!redacted.contains("secret-value"));
+    }
+
+    #[test]
+    fn remembered_routes_never_persist_auth_tokens() {
+        assert_eq!(
+            sanitize_harness_route("/sessions/abc?view=trace&token=secret#step"),
+            Some("/sessions/abc?view=trace#step".to_string())
+        );
+        assert_eq!(sanitize_harness_route("https://example.com/"), None);
+    }
 }

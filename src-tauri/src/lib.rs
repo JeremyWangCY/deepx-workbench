@@ -6,9 +6,13 @@ use tauri::{
 };
 
 const TOOLBAR_SCRIPT: &str = r###"(() => {
-  var isHarness = location.hostname === '127.0.0.1' && location.port === '3080';
+  var isHarness = location.hostname === '127.0.0.1';
   var isLocal = location.hostname === 'tauri.localhost' || location.hostname === 'localhost';
   if (!isHarness && !isLocal) { return; }
+  if (document.documentElement) {
+    document.documentElement.classList.toggle('deepx-harness-host', isHarness);
+    document.documentElement.classList.toggle('deepx-local-host', isLocal);
+  }
   var liveInvoke = getInvoke();
   var checkAuth = function () {
     if (!isHarness) { return; }
@@ -32,6 +36,31 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }
   };
   checkAuth();
+  var setupRouteMemory = function () {
+    if (!isHarness || !liveInvoke || window.__deepxRouteMemoryStarted) { return; }
+    if (!document.getElementById('root') && !window.__DSH_BOOT__) { return; }
+    window.__deepxRouteMemoryStarted = true;
+    var currentRoute = function () { return location.pathname + location.search + location.hash; };
+    var startReporter = function () {
+      var lastRoute = '';
+      var report = function () {
+        var route = currentRoute();
+        if (route === lastRoute) { return; }
+        lastRoute = route;
+        liveInvoke('remember_harness_route', { route: route }).catch(function () {});
+      };
+      report();
+      window.__deepxRouteTimer = setInterval(report, 1200);
+    };
+    liveInvoke('take_harness_restore_route').then(function (route) {
+      if (route && route !== currentRoute()) {
+        location.replace(route);
+        return;
+      }
+      startReporter();
+    }).catch(function () { startReporter(); });
+  };
+  setupRouteMemory();
   var probe = function (br) {
     try {
       var tbs = document.querySelectorAll('header.deepx-toolbar[data-deepx-tb]');
@@ -58,7 +87,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     + '.deepx-win{width:44px!important;height:100%!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;transition:background .12s,color .12s!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}'
     + '.deepx-panel{position:fixed!important;top:48px!important;left:8px;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:8px!important}.deepx-title{font-weight:650!important}.deepx-refresh,.deepx-panel-close{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:14px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.deepx-panel-close:hover{background:#f0f2f5!important;color:#202124!important}'
     + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-sec{margin-top:8px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important}.deepx-sec-title{font-size:11px!important;font-weight:600!important;color:#8a94a6!important;margin-bottom:4px!important;text-transform:uppercase!important;letter-spacing:.5px!important}.deepx-badge{display:inline-flex!important;align-items:center!important;gap:4px!important;color:#107c41!important;font-size:12px!important;font-weight:600!important}.deepx-badge::before{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:#107c41!important}.deepx-badge-busy{color:#d97706!important}.deepx-badge-busy::before{background:#d97706!important}.deepx-badge-err{color:#c23d3d!important}.deepx-badge-err::before{background:#c23d3d!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-btn-sub{background:#f0f2f5!important;color:#202124!important}.deepx-btn-sub:hover{background:#e4e7eb!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
-    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html{padding-top:40px!important;box-sizing:border-box!important}#root{height:100%!important;max-height:100%!important;overflow:hidden!important;box-sizing:border-box!important}[class*="_overlay"]:not([class*="overlayAnchor"]){top:40px!important;height:calc(100vh - 40px)!important;box-sizing:border-box!important;padding:24px 20px 20px!important}[class*="_panel"]{max-height:calc(100vh - 88px)!important}.deepx-quick-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:6px!important}.deepx-quick-grid .deepx-btn{margin-top:0!important;padding:6px 4px!important;font-size:12px!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}';
+    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html.deepx-local-host{padding-top:40px!important;box-sizing:border-box!important}html.deepx-harness-host{padding-top:0!important}html.deepx-harness-host #root{position:absolute!important;top:40px!important;right:0!important;bottom:0!important;left:0!important;height:auto!important;max-height:none!important;overflow:hidden!important;box-sizing:border-box!important}.deepx-quick-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:6px!important}.deepx-quick-grid .deepx-btn{margin-top:0!important;padding:6px 4px!important;font-size:12px!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}';
   window.addEventListener('scroll', function () {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
       window.scrollTo(0, 0);
@@ -220,7 +249,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     const ver = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : '--';
     settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span><button class="deepx-panel-close" title="关闭">×</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">服务与连接</div>'
-      + '<div class="deepx-row"><span>Harness 地址</span><span style="font-family:Consolas,monospace">127.0.0.1:3080</span></div>'
+      + '<div class="deepx-row"><span>Harness 地址</span><span class="deepx-endpoint" style="font-family:Consolas,monospace">动态发现</span></div>'
       + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge' + (isHarness ? '' : ' deepx-badge-err') + '">' + (isHarness ? '运行中' : '未连接') + '</span></div>'
       + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness 服务</button></div>'
       + '<div class="deepx-sec"><div class="deepx-sec-title">常用目录与快捷操作</div>'
@@ -241,6 +270,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     if (ri) {
       ri('runtime_status').then(function (st) {
         var b = settingsPanel && settingsPanel.querySelector('.deepx-service-badge');
+        var endpoint = settingsPanel && settingsPanel.querySelector('.deepx-endpoint');
+        if (endpoint && st) { endpoint.textContent = st.endpoint || '未连接'; }
         if (b && st) {
           if (st.service_running) {
             b.className = 'deepx-badge';
@@ -348,56 +379,25 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     drawSettingsPanel();
     if (!updateStatus) { refreshStatus().catch(function () {}); }
   }
-  function fitHarnessBelowTitlebar() {
-    if (!toolbar) { return false; }
-    const all = document.querySelectorAll('*');
-    let changed = false;
-    for (let i = 0; i < all.length; i++) {
-      const el = all[i];
-      if (el === toolbar || toolbar.contains(el) || panel && panel.contains(el) || settingsPanel && settingsPanel.contains(el)) { continue; }
-      if (el.matches && (el.matches('[class*="_overlay"], [class*="_panel"], [role="dialog"], [aria-modal="true"]') || (el.closest && el.closest('[class*="_overlay"], [role="dialog"], [aria-modal="true"]')))) { continue; }
-      const cs = getComputedStyle(el);
-      if (cs.position !== 'fixed') { continue; }
-      const r = el.getBoundingClientRect();
-      if (r.width < 80 || r.height < 40) { continue; }
-      const nearTop = Math.abs(r.top) < 2;
-      if (!nearTop) { continue; }
-      if (el.style.top === '40px') { continue; }
-      el.style.top = '40px';
-      if (r.height >= window.innerHeight * 0.9) { el.style.height = 'calc(100% - 40px)'; }
-      changed = true;
-    }
-    return changed;
-  }
-  // The harness SPA can drop our <header>/<style> after load; on_page_load only
-  // refires on full navigations, so re-assert both on interval + DOM mutations.
+  // The harness SPA can replace parts of the document after load. Re-assert only
+  // DeepX-owned nodes; never mutate Harness layout nodes or fixed-position portals.
   function remount() {
     try {
+      if (document.documentElement) {
+        document.documentElement.classList.toggle('deepx-harness-host', isHarness);
+        document.documentElement.classList.toggle('deepx-local-host', isLocal);
+      }
       if (style && !style.isConnected && document.head) { document.head.appendChild(style); }
       if (toolbar && !toolbar.isConnected && document.body) { document.body.appendChild(toolbar); }
     } catch (e) { /* best effort */ }
   }
-  function startFitting() {
-    let tries = 0;
-    const retryFit = function () {
-      if (tries >= 60) { return; }
-      tries = tries + 1;
-      if (fitHarnessBelowTitlebar()) { return; }
-      setTimeout(retryFit, 500);
-    };
-    setTimeout(retryFit, 300);
+  function startSurvival() {
     remount();
     setInterval(remount, 600);
     if (!window.MutationObserver) { return; }
-    let pending = false;
-    const observer = new MutationObserver(function () {
-      remount();
-      if (pending) { return; }
-      pending = true;
-      setTimeout(function () { pending = false; fitHarnessBelowTitlebar(); }, 400);
-    });
+    const observer = new MutationObserver(function () { remount(); });
     const root = document.documentElement || document.body;
-    if (root) { observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] }); }
+    if (root) { observer.observe(root, { childList: true, subtree: true }); }
   }
   function mountToolbar() {
     if (toolbar || document.querySelector('.deepx-toolbar')) { return; }
@@ -438,7 +438,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     toolbar.querySelector('.deepx-win-min').addEventListener('click', function () { win('minimize'); });
     toolbar.querySelector('.deepx-win-max').addEventListener('click', function () { win('toggle_maximize'); });
     toolbar.querySelector('.deepx-win-close').addEventListener('click', function () { win('close'); });
-    startFitting();
+    startSurvival();
   }
   function win(action) { var wi = getInvoke(); if (wi) { wi('window_action', { action: action }).catch(function () {}); } }
   if (internals && internals.transformCallback && internals.invoke) {
@@ -484,12 +484,14 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
 mod commands;
 mod runtime;
 pub(crate) use runtime::{
-    configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
+    clear_harness_endpoint, configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
     ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
-    ensure_profile_store_compatibility, harness_auth_cookie, harness_package_manifest, healthy,
+    ensure_profile_store_compatibility, harness_auth_cookie, harness_base_url, harness_child_port,
+    harness_package_manifest, harness_port, harness_process_running, healthy, healthy_on_port,
     hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, profile_dir, repair_marketplace_metadata, run_output_with_timeout, runtime_dir,
-    seed_bundled_marketplace, stop_harness_service, update_runtime, valid_runtime,
+    node_bin, profile_dir, remember_harness_launch_url, repair_marketplace_metadata,
+    rollback_runtime, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
+    stop_harness_service, take_harness_boot_url, update_runtime, valid_runtime,
     write_no_browser_patch,
 };
 
@@ -567,6 +569,37 @@ fn install_taskbar_restart_task() -> Result<(), String> {
     Ok(())
 }
 
+fn diagnostic_paths(app: &AppHandle) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let flag = app.path().app_data_dir().ok()?.join(".deepx-probe.flag");
+    let log = app.path().app_log_dir().ok()?.join("webview-onload.log");
+    Some((flag, log))
+}
+
+fn redact_url_for_log(url: &tauri::Url) -> String {
+    let mut redacted = url.clone();
+    let pairs = redacted
+        .query_pairs()
+        .map(|(key, value)| {
+            if key == "token" {
+                (key.into_owned(), "<redacted>".to_string())
+            } else {
+                (key.into_owned(), value.into_owned())
+            }
+        })
+        .collect::<Vec<_>>();
+    if pairs.is_empty() {
+        return redacted.to_string();
+    }
+    redacted.set_query(None);
+    {
+        let mut query = redacted.query_pairs_mut();
+        for (key, value) in pairs {
+            query.append_pair(&key, &value);
+        }
+    }
+    redacted.to_string()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -581,37 +614,43 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .on_page_load(|webview, payload| {
-            let mut log = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .truncate(false)
-                .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
-                .unwrap_or_else(|_| {
-                    std::fs::OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(false)
-                        .open("C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log")
-                        .expect("log")
-                });
             use std::io::Write as _;
-            let _ = writeln!(
-                log,
-                "EVT {:?}\t{} | label={}",
-                payload.event(),
-                payload.url(),
-                webview.label()
+            let mut diagnostic_log = diagnostic_paths(webview.app_handle()).and_then(
+                |(flag_path, log_path)| {
+                    if !flag_path.is_file() {
+                        return None;
+                    }
+                    if let Some(parent) = log_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(log_path)
+                        .ok()
+                },
             );
+            if let Some(log) = diagnostic_log.as_mut() {
+                let _ = writeln!(
+                    log,
+                    "EVT {:?}\t{} | label={}",
+                    payload.event(),
+                    redact_url_for_log(payload.url()),
+                    webview.label()
+                );
+            }
             if payload.event() == PageLoadEvent::Finished {
                 let is_target = webview.label() == "main"
                     && (
-                        (payload.url().host_str() == Some("127.0.0.1") && payload.url().port() == Some(3080))
+                        payload.url().host_str() == Some("127.0.0.1")
                         || payload.url().host_str() == Some("tauri.localhost")
                         || payload.url().host_str() == Some("localhost")
                     );
                 if is_target {
                     let result = webview.eval(TOOLBAR_SCRIPT);
-                    let _ = writeln!(log, "EVAL label={} result={:?}", webview.label(), result);
+                    if let Some(log) = diagnostic_log.as_mut() {
+                        let _ = writeln!(log, "EVAL label={} result={:?}", webview.label(), result);
+                    }
                 }
             }
         })
@@ -626,6 +665,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::window_action,
             commands::runtime_status,
+            commands::remember_harness_route,
+            commands::take_harness_restore_route,
             commands::update_status,
             commands::launch_harness,
             commands::show_harness,
@@ -639,19 +680,16 @@ pub fn run() {
             commands::install_marketplace,
         ])
         .setup(|app| {
-            // Cap the page-load diagnostic log so long-term daily use cannot
-            // grow it without bound: past ~512 KiB only the last 400 lines
-            // are kept. Runs once per launch; logging itself is untouched.
-            {
-                const ONLOAD_LOG: &str =
-                    "C:\\Users\\Laptop\\AppData\\Local\\deepx-onload.log";
-                if let Ok(metadata) = std::fs::metadata(ONLOAD_LOG) {
+            // Diagnostic page-load logging is opt-in via .deepx-probe.flag.
+            // When enabled, cap it so debugging cannot grow the app log forever.
+            if let Some((_flag_path, log_path)) = diagnostic_paths(app.handle()) {
+                if let Ok(metadata) = std::fs::metadata(&log_path) {
                     if metadata.len() > 512 * 1024 {
-                        if let Ok(text) = std::fs::read_to_string(ONLOAD_LOG) {
+                        if let Ok(text) = std::fs::read_to_string(&log_path) {
                             let lines: Vec<&str> = text.lines().collect();
                             if lines.len() > 400 {
                                 let tail = lines[lines.len() - 400..].join("\n");
-                                let _ = std::fs::write(ONLOAD_LOG, tail + "\n");
+                                let _ = std::fs::write(&log_path, tail + "\n");
                             }
                         }
                     }
@@ -697,11 +735,10 @@ pub fn run() {
                         }
                     }
                     "reload" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            if let Ok(url) = tauri::Url::parse("http://127.0.0.1:3080/") {
-                                let _ = window.navigate(url);
-                            }
-                        }
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = commands::reload_harness(handle).await;
+                        });
                     }
                     "restart-harness" => {
                         let handle = app.clone();
@@ -747,6 +784,11 @@ pub fn run() {
                     }
                 });
             });
+
+            // Harness watchdog: unlike the toolbar watchdog above, this monitors
+            // the backend service itself. Two consecutive failed health probes
+            // trigger bounded restart/backoff and reattach the WebView.
+            commands::start_harness_watchdog(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-remember-harness-route"
+description = "Enables the remember_harness_route command without any pre-configured scope."
+commands.allow = ["remember_harness_route"]
+
+[[permission]]
+identifier = "deny-remember-harness-route"
+description = "Denies the remember_harness_route command without any pre-configured scope."
+commands.deny = ["remember_harness_route"]
