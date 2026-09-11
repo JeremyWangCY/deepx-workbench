@@ -149,9 +149,10 @@ pub(crate) fn start_harness_watchdog(app: AppHandle) {
         tokio::time::sleep(Duration::from_secs(12)).await;
         let mut consecutive_failures = 0_u8;
         loop {
-            if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0 || !valid_runtime(&app) {
-                consecutive_failures = 0;
-            } else if healthy(&app).await && harness_owns_port(&app) {
+            if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0
+                || !valid_runtime(&app)
+                || (healthy(&app).await && harness_owns_port(&app))
+            {
                 consecutive_failures = 0;
             } else {
                 consecutive_failures = consecutive_failures.saturating_add(1);
@@ -410,10 +411,10 @@ fn child_owns_harness_port(pid: u32) -> bool {
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        return command
+        command
             .output()
             .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
 
     #[cfg(not(windows))]

@@ -823,10 +823,10 @@ if ($match) {{ Write-Output '1' }}"#
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        return command
+        command
             .output()
             .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
 
     #[cfg(not(windows))]
@@ -859,10 +859,10 @@ if ($pids) {{
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        return command
+        command
             .output()
             .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
 
     #[cfg(not(windows))]
