@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.71] - 2026-09-11
+
+### Changed
+
+- Simplified the DeepX settings panel around actionable information: connection status and the current local Harness endpoint, file shortcuts, maintenance actions, and a compact DeepX/Harness version summary. Static implementation details such as WebView2/Tauri, F12, and close-to-tray behavior no longer occupy the settings surface.
+- Settings now read DeepX and Harness versions from local runtime status instead of triggering a network update check just to render the panel.
+- Settings actions keep short, stable button labels while progress and errors are reported in a dedicated status line; runtime status starts at “checking” instead of guessing from the current page.
+- The startup shell now keeps a single “正在准备...” state until Harness takes over the WebView, removing the redundant “DeepX 正在打开...” transition.
+
 ## [0.1.70] - 2026-09-11
 
 ### Added

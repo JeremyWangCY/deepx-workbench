@@ -87,7 +87,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     + '.deepx-win{width:44px!important;height:100%!important;border:0!important;background:transparent!important;color:#5f6368!important;cursor:pointer!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;padding:0!important;transition:background .12s,color .12s!important}.deepx-win:hover{background:#e9edf1!important;color:#202124!important}.deepx-win-close:hover{background:#e81123!important;color:#fff!important}'
     + '.deepx-panel{position:fixed!important;top:48px!important;left:8px;width:min(360px,calc(100vw - 24px))!important;padding:12px!important;border:1px solid #dfe3e8!important;border-radius:8px!important;background:#fff!important;box-shadow:0 10px 28px rgba(0,0,0,.19)!important;z-index:2147483646!important;font:13px Segoe UI,system-ui,sans-serif!important;color:#202124!important}.deepx-head{display:flex!important;align-items:center!important;justify-content:space-between!important;margin-bottom:8px!important}.deepx-title{font-weight:650!important}.deepx-refresh,.deepx-panel-close{width:24px!important;height:24px!important;padding:0!important;border:1px solid #dfe3e8!important;border-radius:5px!important;background:#fff!important;color:#5f6368!important;cursor:pointer!important;font-size:14px!important;line-height:1!important;display:inline-flex!important;align-items:center!important;justify-content:center!important}.deepx-panel-close:hover{background:#f0f2f5!important;color:#202124!important}'
     + '.deepx-refresh:hover{color:#366cf6!important;border-color:#b9cbfa!important}.deepx-row{display:flex!important;justify-content:space-between!important;align-items:center!important;gap:12px!important;padding:4px 0!important;color:#5f6368!important}.deepx-sec{margin-top:8px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important}.deepx-sec-title{font-size:11px!important;font-weight:600!important;color:#8a94a6!important;margin-bottom:4px!important;text-transform:uppercase!important;letter-spacing:.5px!important}.deepx-badge{display:inline-flex!important;align-items:center!important;gap:4px!important;color:#107c41!important;font-size:12px!important;font-weight:600!important}.deepx-badge::before{content:""!important;width:6px!important;height:6px!important;border-radius:50%!important;background:#107c41!important}.deepx-badge-busy{color:#d97706!important}.deepx-badge-busy::before{background:#d97706!important}.deepx-badge-err{color:#c23d3d!important}.deepx-badge-err::before{background:#c23d3d!important}.deepx-btn{width:100%!important;margin-top:8px!important;padding:7px!important;border:0!important;border-radius:5px!important;background:#366cf6!important;color:#fff!important;cursor:pointer!important;font:13px Segoe UI,system-ui,sans-serif!important}.deepx-btn-sub{background:#f0f2f5!important;color:#202124!important}.deepx-btn-sub:hover{background:#e4e7eb!important}.deepx-btn:disabled{opacity:.55!important;cursor:not-allowed!important}.deepx-track{height:5px!important;margin-top:9px!important;background:#e9edf2!important;border-radius:3px!important;overflow:hidden!important}.deepx-track i{display:block!important;height:100%!important;background:#366cf6!important;width:0!important;transition:width .2s!important}'
-    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html.deepx-local-host{padding-top:40px!important;box-sizing:border-box!important}html.deepx-harness-host{padding-top:0!important}html.deepx-harness-host #root{position:absolute!important;top:40px!important;right:0!important;bottom:0!important;left:0!important;height:auto!important;max-height:none!important;overflow:hidden!important;box-sizing:border-box!important}.deepx-quick-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:6px!important}.deepx-quick-grid .deepx-btn{margin-top:0!important;padding:6px 4px!important;font-size:12px!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}';
+    + '.deepx-status{color:#5f6368!important;font-size:11px!important;line-height:1.5!important;margin-top:6px!important;min-height:18px!important}.deepx-error{color:#c23d3d!important}html,body{height:100%!important;max-height:100%!important;overflow:hidden!important;margin:0!important}html.deepx-local-host{padding-top:40px!important;box-sizing:border-box!important}html.deepx-harness-host{padding-top:0!important}html.deepx-harness-host #root{position:absolute!important;top:40px!important;right:0!important;bottom:0!important;left:0!important;height:auto!important;max-height:none!important;overflow:hidden!important;box-sizing:border-box!important}.deepx-quick-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:6px!important;margin-top:6px!important}.deepx-quick-grid .deepx-btn{margin-top:0!important;padding:6px 4px!important;font-size:12px!important;text-align:center!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}.deepx-settings-panel .deepx-endpoint{max-width:220px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#202124!important}.deepx-settings-meta{margin-top:10px!important;padding-top:8px!important;border-top:1px solid #edf0f2!important;color:#8a94a6!important;font-size:11px!important;text-align:center!important}.deepx-settings-feedback{margin-top:8px!important;min-height:16px!important;color:#5f6368!important;font-size:11px!important;line-height:1.45!important;overflow-wrap:anywhere!important}.deepx-settings-feedback:empty{display:none!important}';
   window.addEventListener('scroll', function () {
     if (window.scrollY !== 0 || window.scrollX !== 0) {
       window.scrollTo(0, 0);
@@ -155,9 +155,15 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function applyStatus(status) {
     updateStatus = status;
-    if (settingsPanel && status && status.deepx && status.deepx.current) {
-      const vEl = settingsPanel.querySelector('.deepx-settings-ver');
-      if (vEl) { vEl.textContent = 'v' + status.deepx.current; }
+    if (settingsPanel && status) {
+      const deepxVersion = settingsPanel.querySelector('.deepx-settings-deepx-ver');
+      const harnessVersion = settingsPanel.querySelector('.deepx-settings-harness-ver');
+      if (deepxVersion && status.deepx && status.deepx.current) {
+        deepxVersion.textContent = 'v' + status.deepx.current;
+      }
+      if (harnessVersion && status.harness && status.harness.current) {
+        harnessVersion.textContent = 'v' + status.harness.current;
+      }
     }
     if (!panel) { return; }
     panel.querySelector('.deepx-app-version').textContent = versionText(status && status.deepx);
@@ -246,69 +252,124 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function drawSettingsPanel() {
     if (!settingsPanel) { return; }
-    const ver = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : '--';
-    settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span><button class="deepx-panel-close" title="关闭">×</button></div>'
-      + '<div class="deepx-sec"><div class="deepx-sec-title">服务与连接</div>'
-      + '<div class="deepx-row"><span>Harness 地址</span><span class="deepx-endpoint" style="font-family:Consolas,monospace">动态发现</span></div>'
-      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-service-badge' + (isHarness ? '' : ' deepx-badge-err') + '">' + (isHarness ? '运行中' : '未连接') + '</span></div>'
-      + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness 服务</button></div>'
-      + '<div class="deepx-sec"><div class="deepx-sec-title">常用目录与快捷操作</div>'
+    const deepxVer = (updateStatus && updateStatus.deepx && updateStatus.deepx.current) ? ('v' + updateStatus.deepx.current) : '--';
+    const harnessVer = (updateStatus && updateStatus.harness && updateStatus.harness.current) ? ('v' + updateStatus.harness.current) : '--';
+    settingsPanel.innerHTML = '<div class="deepx-head"><span class="deepx-title">DeepX 设置</span>'
+      + '<div style="display:flex;gap:4px"><button class="deepx-refresh deepx-settings-refresh" title="刷新状态">↻</button><button class="deepx-panel-close" title="关闭">×</button></div></div>'
+      + '<div class="deepx-sec"><div class="deepx-sec-title">连接</div>'
+      + '<div class="deepx-row"><span>运行状态</span><span class="deepx-badge deepx-badge-busy deepx-service-badge">检查中</span></div>'
+      + '<div class="deepx-row"><span>本地地址</span><span class="deepx-endpoint" style="font-family:Consolas,monospace">检查中</span></div>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-restart-btn">重启 Harness</button></div>'
+      + '<div class="deepx-sec"><div class="deepx-sec-title">文件</div>'
       + '<div class="deepx-quick-grid">'
-      + '<button class="deepx-btn deepx-btn-sub deepx-open-dsh-btn" title="~/.dsh">打开配置目录</button>'
-      + '<button class="deepx-btn deepx-btn-sub deepx-open-plugins-btn" title="Web Profile">打开插件目录</button>'
-      + '<button class="deepx-btn deepx-btn-sub deepx-open-skills-btn" title=".agents/skills">打开技能目录</button>'
-      + '<button class="deepx-btn deepx-btn-sub deepx-open-log-btn" title="harness-startup.log">查看启动日志</button>'
-      + '</div>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-dsh-btn" title="~/.dsh">配置目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-plugins-btn" title="Web Profile">插件目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-skills-btn" title=".agents/skills">技能目录</button>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-open-log-btn" title="harness-startup.log">启动日志</button>'
+      + '</div></div>'
+      + '<div class="deepx-sec"><div class="deepx-sec-title">维护</div>'
+      + '<div class="deepx-quick-grid">'
       + '<button class="deepx-btn deepx-btn-sub deepx-repair-btn">修复插件环境</button>'
-      + '<button class="deepx-btn deepx-btn-sub deepx-migrate-skills-btn">迁移 Codex 技能</button></div>'
-      + '<div class="deepx-sec"><div class="deepx-sec-title">关于</div>'
-      + '<div class="deepx-row"><span>版本</span><span class="deepx-settings-ver">' + ver + '</span></div>'
-      + '<div class="deepx-row"><span>运行环境</span><span>WebView2 / Tauri</span></div>'
-      + '<div class="deepx-row"><span>快捷键</span><span>F12 开发者工具</span></div>'
-      + '<div class="deepx-row"><span>关闭按钮行为</span><span>最小化到系统托盘</span></div></div>';
-    var ri = getInvoke();
-    if (ri) {
-      ri('runtime_status').then(function (st) {
-        var b = settingsPanel && settingsPanel.querySelector('.deepx-service-badge');
-        var endpoint = settingsPanel && settingsPanel.querySelector('.deepx-endpoint');
-        if (endpoint && st) { endpoint.textContent = st.endpoint || '未连接'; }
-        if (b && st) {
-          if (st.service_running) {
-            b.className = 'deepx-badge';
-            b.textContent = '运行中';
+      + '<button class="deepx-btn deepx-btn-sub deepx-migrate-skills-btn">迁移 Codex 技能</button>'
+      + '</div></div>'
+      + '<div class="deepx-settings-feedback"></div>'
+      + '<div class="deepx-settings-meta">DeepX <span class="deepx-settings-deepx-ver">' + deepxVer + '</span> · Harness <span class="deepx-settings-harness-ver">' + harnessVer + '</span></div>';
+
+    const feedback = settingsPanel.querySelector('.deepx-settings-feedback');
+    const badge = settingsPanel.querySelector('.deepx-service-badge');
+    const endpoint = settingsPanel.querySelector('.deepx-endpoint');
+    const setFeedback = function (text, isError) {
+      if (!feedback) { return; }
+      feedback.textContent = text || '';
+      feedback.classList.toggle('deepx-error', !!isError);
+    };
+    const refreshRuntime = async function () {
+      var ri = getInvoke();
+      if (!ri) { return; }
+      if (badge) {
+        badge.className = 'deepx-badge deepx-badge-busy deepx-service-badge';
+        badge.textContent = '检查中';
+      }
+      if (endpoint) { endpoint.textContent = '检查中'; endpoint.removeAttribute('title'); }
+      try {
+        const st = await ri('runtime_status');
+        const deepxVersion = settingsPanel && settingsPanel.querySelector('.deepx-settings-deepx-ver');
+        const harnessVersion = settingsPanel && settingsPanel.querySelector('.deepx-settings-harness-ver');
+        if (deepxVersion && st && st.deepx_version) { deepxVersion.textContent = 'v' + st.deepx_version; }
+        if (harnessVersion && st && st.version) { harnessVersion.textContent = 'v' + st.version; }
+        if (endpoint) {
+          endpoint.textContent = (st && st.endpoint) || '未连接';
+          if (st && st.endpoint) { endpoint.title = st.endpoint; }
+        }
+        if (badge) {
+          if (st && st.service_running) {
+            badge.className = 'deepx-badge deepx-service-badge';
+            badge.textContent = '运行中';
           } else {
-            b.className = 'deepx-badge deepx-badge-err';
-            b.textContent = '未连接';
+            badge.className = 'deepx-badge deepx-badge-err deepx-service-badge';
+            badge.textContent = '未连接';
           }
         }
-      }).catch(function () {});
-    }
+      } catch (e) {
+        if (endpoint) { endpoint.textContent = '不可用'; }
+        if (badge) {
+          badge.className = 'deepx-badge deepx-badge-err deepx-service-badge';
+          badge.textContent = '状态异常';
+        }
+        setFeedback('读取运行状态失败：' + e, true);
+      }
+    };
+
     const closeBtn = settingsPanel.querySelector('.deepx-panel-close');
     if (closeBtn) { closeBtn.onclick = toggleSettings; }
+    const refreshBtn = settingsPanel.querySelector('.deepx-settings-refresh');
+    if (refreshBtn) {
+      refreshBtn.onclick = async function () {
+        if (refreshBtn.disabled) { return; }
+        refreshBtn.disabled = true;
+        setFeedback('正在刷新状态...', false);
+        try {
+          await refreshRuntime();
+          setFeedback('状态已刷新', false);
+        } catch (e) {
+          setFeedback('刷新失败：' + e, true);
+        } finally {
+          refreshBtn.disabled = false;
+        }
+      };
+    }
+
     const rBtn = settingsPanel.querySelector('.deepx-restart-btn');
-    const badge = settingsPanel.querySelector('.deepx-service-badge');
     if (rBtn) {
       rBtn.onclick = async function () {
         var ri = getInvoke();
         if (!ri || rBtn.disabled) { return; }
         rBtn.disabled = true;
         rBtn.textContent = '正在重启...';
-        if (badge) { badge.className = 'deepx-badge deepx-badge-busy'; badge.textContent = '正在重启'; }
+        setFeedback('正在重启 Harness...', false);
+        if (badge) {
+          badge.className = 'deepx-badge deepx-badge-busy deepx-service-badge';
+          badge.textContent = '正在重启';
+        }
         try {
           await ri('restart_harness');
-          rBtn.textContent = 'Harness 已重启';
-          if (badge) { badge.className = 'deepx-badge'; badge.textContent = '运行中'; }
+          setFeedback('Harness 已重启', false);
+          await refreshRuntime();
         } catch (e) {
-          rBtn.textContent = '重启失败: ' + e;
-          if (badge) { badge.className = 'deepx-badge deepx-badge-err'; badge.textContent = '重启失败'; }
+          setFeedback('重启失败：' + e, true);
+          if (badge) {
+            badge.className = 'deepx-badge deepx-badge-err deepx-service-badge';
+            badge.textContent = '重启失败';
+          }
         } finally {
-          setTimeout(function () {
-            if (rBtn) { rBtn.disabled = false; rBtn.textContent = '重启 Harness 服务'; }
-            if (badge && badge.textContent === '正在重启') { badge.className = 'deepx-badge'; badge.textContent = '运行中'; }
-          }, 3000);
+          if (rBtn.isConnected) {
+            rBtn.disabled = false;
+            rBtn.textContent = '重启 Harness';
+          }
         }
       };
     }
+
     const openDshBtn = settingsPanel.querySelector('.deepx-open-dsh-btn');
     if (openDshBtn) { openDshBtn.onclick = function () { win('open_dsh_home'); }; }
     const openPluginsBtn = settingsPanel.querySelector('.deepx-open-plugins-btn');
@@ -317,6 +378,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     if (openSkillsBtn) { openSkillsBtn.onclick = function () { win('open_skills_dir'); }; }
     const openLogBtn = settingsPanel.querySelector('.deepx-open-log-btn');
     if (openLogBtn) { openLogBtn.onclick = function () { win('open_log_file'); }; }
+
     const repairBtn = settingsPanel.querySelector('.deepx-repair-btn');
     if (repairBtn) {
       repairBtn.onclick = async function () {
@@ -324,44 +386,48 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
         if (!ri || repairBtn.disabled) { return; }
         repairBtn.disabled = true;
         repairBtn.textContent = '正在修复...';
+        setFeedback('正在修复插件环境...', false);
         try {
           await ri('window_action', { action: 'repair_plugins' });
-          repairBtn.textContent = '修复完成';
+          setFeedback('插件环境修复完成', false);
         } catch (e) {
-          repairBtn.textContent = '修复失败: ' + e;
+          setFeedback('修复失败：' + e, true);
         } finally {
-          setTimeout(function () {
-            if (repairBtn) { repairBtn.disabled = false; repairBtn.textContent = '修复插件环境'; }
-          }, 2500);
+          if (repairBtn.isConnected) {
+            repairBtn.disabled = false;
+            repairBtn.textContent = '修复插件环境';
+          }
         }
       };
     }
+
     const migrateSkillsBtn = settingsPanel.querySelector('.deepx-migrate-skills-btn');
     if (migrateSkillsBtn) {
       migrateSkillsBtn.onclick = async function () {
         var ri = getInvoke();
         if (!ri || migrateSkillsBtn.disabled) { return; }
         migrateSkillsBtn.disabled = true;
-        migrateSkillsBtn.textContent = '正在检查/迁移...';
+        migrateSkillsBtn.textContent = '正在迁移...';
+        setFeedback('正在检查 Codex 技能...', false);
         try {
           var res = await ri('window_action', { action: 'migrate_codex_skills' });
-          if (typeof res === 'number') {
-            migrateSkillsBtn.textContent = res > 0 ? ('迁移完成 (已迁移 ' + res + ' 个技能)') : '迁移完成 (无新技能)';
+          if (typeof res === 'number' && res > 0) {
+            setFeedback('已迁移 ' + res + ' 个新技能', false);
           } else {
-            migrateSkillsBtn.textContent = '迁移完成';
+            setFeedback('没有需要迁移的新技能', false);
           }
         } catch (e) {
-          migrateSkillsBtn.textContent = '迁移失败: ' + e;
+          setFeedback('迁移失败：' + e, true);
         } finally {
-          setTimeout(function () {
-            if (migrateSkillsBtn) {
-              migrateSkillsBtn.disabled = false;
-              migrateSkillsBtn.textContent = '迁移 Codex 技能';
-            }
-          }, 3000);
+          if (migrateSkillsBtn.isConnected) {
+            migrateSkillsBtn.disabled = false;
+            migrateSkillsBtn.textContent = '迁移 Codex 技能';
+          }
         }
       };
     }
+
+    refreshRuntime();
   }
   function toggleSettings() {
     var ti = getInvoke();
@@ -377,7 +443,6 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }
     document.body.appendChild(settingsPanel);
     drawSettingsPanel();
-    if (!updateStatus) { refreshStatus().catch(function () {}); }
   }
   // The harness SPA can replace parts of the document after load. Re-assert only
   // DeepX-owned nodes; never mutate Harness layout nodes or fixed-position portals.
