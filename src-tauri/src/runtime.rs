@@ -936,9 +936,7 @@ pub(crate) fn harness_child_port(pid: u32) -> Option<u16> {
 pub(crate) fn harness_port(app: &AppHandle) -> Option<u16> {
     #[cfg(windows)]
     {
-        let Some((entry, patch)) = harness_match_paths(app) else {
-            return None;
-        };
+        let (entry, patch) = harness_match_paths(app)?;
         let script = format!(
             r#"$entry = '{entry}'
 $patch = '{patch}'
