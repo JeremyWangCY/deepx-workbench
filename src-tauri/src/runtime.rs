@@ -40,7 +40,10 @@ pub(crate) fn remember_harness_launch_url(url: &str) -> Option<u16> {
     }
     let port = parsed.port()?;
     remember_harness_port(port);
-    if parsed.query_pairs().any(|(key, _)| key == "token") {
+    if parsed
+        .query_pairs()
+        .any(|(key, _)| key.eq_ignore_ascii_case("token"))
+    {
         if let Ok(mut state) = harness_boot_url_state().lock() {
             *state = Some(url.to_string());
         }
@@ -589,14 +592,20 @@ async fn download_runtime_archive(app: &AppHandle) -> Result<(), String> {
         15,
         format!("正在下载 DeepSeek Harness 运行时 v{version}..."),
     );
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("DeepX Workbench")
+        .connect_timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("初始化运行时下载器失败: {error}"))?;
     let mut response = client
         .get(&url)
         .send()
         .await
-        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?
+        .map_err(|error| {
+            format!("下载 Harness 运行时失败，请检查 GitHub Release 网络连接: {error}")
+        })?
         .error_for_status()
-        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?;
+        .map_err(|error| format!("下载 Harness 运行时失败，Release 资源不可用: {error}"))?;
     let total = response.content_length();
 
     let mut file = tokio::fs::File::create(&archive)
@@ -604,17 +613,29 @@ async fn download_runtime_archive(app: &AppHandle) -> Result<(), String> {
         .map_err(|error| format!("创建运行时缓存失败: {error}"))?;
     let mut downloaded: u64 = 0;
     let mut last_emit = Instant::now();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|error| format!("下载 Harness 运行时失败: {error}"))?
-    {
+    let mut last_bytes: u64 = 0;
+    loop {
+        let chunk = match response.chunk().await {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(error) => {
+                drop(file);
+                let _ = fs::remove_file(&archive);
+                return Err(format!(
+                    "下载 Harness 运行时中断，请检查 GitHub Release 网络连接: {error}"
+                ));
+            }
+        };
+        if let Err(error) = file.write_all(&chunk).await {
+            drop(file);
+            let _ = fs::remove_file(&archive);
+            return Err(format!("写入运行时缓存失败: {error}"));
+        }
         downloaded += chunk.len() as u64;
-        file.write_all(&chunk)
-            .await
-            .map_err(|error| format!("写入运行时缓存失败: {error}"))?;
+
         if last_emit.elapsed().as_millis() >= 300 {
-            last_emit = Instant::now();
+            let elapsed = last_emit.elapsed().as_secs_f64().max(0.001);
+            let speed = (downloaded.saturating_sub(last_bytes) as f64 / elapsed) as u64;
             let percent = total
                 .map(|t| {
                     if t == 0 {
@@ -624,15 +645,53 @@ async fn download_runtime_archive(app: &AppHandle) -> Result<(), String> {
                     }
                 })
                 .unwrap_or(20);
-            emit_progress(
-                app,
-                percent,
-                format!("正在下载 DeepSeek Harness 运行时 v{version}..."),
-            );
+            let downloaded_mb = downloaded as f64 / 1024.0 / 1024.0;
+            let speed_mb = speed as f64 / 1024.0 / 1024.0;
+            let detail = match total.filter(|total| *total > 0) {
+                Some(total) => format!(
+                    "正在下载 DeepSeek Harness 运行时 v{version} · {:.1} / {:.1} MB · {:.1} MB/s",
+                    downloaded_mb,
+                    total as f64 / 1024.0 / 1024.0,
+                    speed_mb
+                ),
+                None => format!(
+                    "正在下载 DeepSeek Harness 运行时 v{version} · {:.1} MB · {:.1} MB/s",
+                    downloaded_mb, speed_mb
+                ),
+            };
+            emit_progress(app, percent, detail);
+            last_emit = Instant::now();
+            last_bytes = downloaded;
         }
     }
-    file.flush().await.map_err(|error| error.to_string())?;
+    if let Err(error) = file.flush().await {
+        drop(file);
+        let _ = fs::remove_file(&archive);
+        return Err(format!("写入运行时缓存失败: {error}"));
+    }
+    if let Err(error) = file.sync_all().await {
+        drop(file);
+        let _ = fs::remove_file(&archive);
+        return Err(format!("同步运行时缓存失败: {error}"));
+    }
     drop(file);
+    if downloaded == 0 || total.is_some_and(|expected| expected != downloaded) {
+        let _ = fs::remove_file(&archive);
+        return Err(format!(
+            "运行时下载不完整：已下载 {downloaded} 字节，预期 {}",
+            total
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "未知".to_string())
+        ));
+    }
+    emit_progress(
+        app,
+        70,
+        format!(
+            "运行时下载完成 · {:.1} MB",
+            downloaded as f64 / 1024.0 / 1024.0
+        ),
+    );
 
     let destination = runtime_dir(app);
     let app_data = app
@@ -903,6 +962,11 @@ if ($match) {{ Write-Output '1' }}"#
 }
 
 pub(crate) fn harness_child_port(pid: u32) -> Option<u16> {
+    let cached = HARNESS_PORT.load(Ordering::SeqCst);
+    if cached > 0 {
+        return Some(cached);
+    }
+
     #[cfg(windows)]
     {
         let script = format!(
@@ -934,6 +998,11 @@ pub(crate) fn harness_child_port(pid: u32) -> Option<u16> {
 }
 
 pub(crate) fn harness_port(app: &AppHandle) -> Option<u16> {
+    let cached = HARNESS_PORT.load(Ordering::SeqCst);
+    if cached > 0 {
+        return Some(cached);
+    }
+
     #[cfg(windows)]
     {
         let (entry, patch) = harness_match_paths(app)?;
@@ -1049,7 +1118,16 @@ pub(crate) async fn healthy_on_port(port: u16) -> bool {
 
 pub(crate) async fn healthy(app: &AppHandle) -> bool {
     match harness_port(app) {
-        Some(port) => healthy_on_port(port).await,
+        Some(port) => {
+            let healthy = healthy_on_port(port).await;
+            if !healthy {
+                // A cached endpoint belongs to the DeepX-owned Harness that was
+                // previously discovered. Drop it as soon as health fails so a
+                // recovery launch never reuses a stale port.
+                clear_harness_endpoint();
+            }
+            healthy
+        }
         None => false,
     }
 }

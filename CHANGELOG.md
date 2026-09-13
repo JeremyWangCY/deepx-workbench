@@ -5,6 +5,32 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.73] - 2026-09-13
+
+### Added
+
+- Added an explicit Harness lifecycle model (`stopped`, `starting`, `healthy`, `recovering`, `updating`, `rolling_back`, `failed`) and surfaced those states in the DeepX settings panel, including live refresh while automatic recovery or rollback is in progress.
+- Added a one-click **Export redacted diagnostics** action. The generated ZIP contains only a compact runtime summary plus recent Harness startup/supervisor logs; authentication query tokens and the user home path are redacted, while credentials and Harness session files are not included.
+- First-run runtime downloads now show transferred MB, total size when known, and current MB/s, with clearer GitHub Release connectivity errors and cleanup of incomplete archives.
+
+### Changed
+
+- Cached the already-discovered Harness loopback endpoint during healthy operation so routine status checks and the watchdog avoid repeatedly spawning PowerShell/CIM listener-discovery commands. The cache is cleared on stop, process exit, or health failure and the existing exact-process discovery path remains the fallback.
+- Harness supervisor logs now rotate at 2 MiB instead of growing without bound.
+- Token query detection and route sanitization are now case-insensitive.
+
+### Fixed
+
+- Prevented intentional restart/update child exits from briefly overwriting the active maintenance lifecycle with `stopped`.
+- Prevented a single settings-panel health probe from downgrading the lifecycle state; recovery decisions remain owned by the supervisor/watchdog.
+
+## [0.1.72] - 2026-09-12
+
+### Fixed
+
+- Hid the Windows helper window used by the single-instance plugin so launching DeepX again activates the existing instance without leaving a visible helper window behind.
+- Vendored the patched single-instance plugin used by the Windows build so the helper-window behavior is deterministic in packaged releases.
+
 ## [0.1.71] - 2026-09-11
 
 ### Changed

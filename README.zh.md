@@ -16,8 +16,9 @@ DeepX 不修改 Harness 的业务逻辑，也不替代 Harness。本项目的目
 
 - **直接进入 Harness**：不跳转默认浏览器，Harness 始终留在 DeepX 窗口内。
 - **动态本地端口**：DeepX 启动 Harness 时自动选择可用的 loopback 端口，不再依赖固定 `3080`；升级时也能重新识别旧的固定端口实例。
-- **进程监督与自动恢复**：Harness 异常退出或连续失去健康状态时，DeepX 会尝试恢复，而不是让桌面壳直接失效。
+- **进程监督与自动恢复**：Harness 异常退出或连续失去健康状态时，DeepX 会尝试恢复，并明确区分启动、恢复、更新、回滚和失败状态。
 - **安全更新 Harness**：新版运行时先在 staging 中更新和校验，启动失败时自动回滚到上一版。
+- **单实例桌面体验**：再次启动 DeepX 会激活现有窗口，不会重复启动第二套 Harness。
 - **DeepX 自更新**：从 GitHub Release 获取最新 Windows 安装包，由用户主动触发。
 - **连接恢复**：Harness 重启后，DeepX 会尽量恢复到之前的页面路由；不会改写 Harness 的 session 存储。
 - **日志脱敏**：Harness 启动 URL 中的认证 token 不会原样写入 DeepX 日志。
@@ -39,6 +40,8 @@ DeepX 不修改 Harness 的业务逻辑，也不替代 Harness。本项目的目
 
 第一次启动时，如果应用数据目录里还没有有效运行时，DeepX 会从**同版本 GitHub Release** 下载并解压 `deepx-runtime-v<版本>.zip`，然后准备插件市场并启动 Harness。因此首次启动需要能够访问 GitHub Release。
 
+下载过程中会显示已下载 MB、总大小（可用时）和当前速度；如果连接 GitHub Release 失败，会给出更明确的错误并清理未完成的缓存压缩包。
+
 启动页只保留一个“正在准备...”状态，直到 Harness 真正接管 WebView。
 
 运行时准备完成后，之后的正常启动不会重复下载或安装依赖；只有显式更新或运行时损坏恢复时才会进入相应的更新 / 修复流程。
@@ -57,7 +60,7 @@ DeepX 不修改 Harness 的业务逻辑，也不替代 Harness。本项目的目
 设置页只保留会变化或可以操作的内容：
 
 **连接**
-- Harness 运行状态
+- Harness 生命周期状态（启动 / 运行 / 自动恢复 / 更新 / 回滚 / 失败）
 - 当前本地地址
 - 重启 Harness
 
@@ -70,6 +73,9 @@ DeepX 不修改 Harness 的业务逻辑，也不替代 Harness。本项目的目
 **维护**
 - 修复插件环境
 - 迁移 Codex 技能
+- 导出脱敏诊断包
+
+诊断包只包含 DeepX/Harness 版本与生命周期摘要、近期 supervisor/startup 日志；认证 token 和用户 Home 路径会脱敏，不包含 `.credentials` 或 Harness session 文件。
 
 底部只显示 DeepX 和 Harness 当前版本。
 
@@ -109,10 +115,10 @@ Harness 更新采用事务式流程：
 1. 打开 **设置 → 启动日志**
 2. 尝试 **重启 Harness**
 3. 如涉及插件，尝试 **修复插件环境**
-4. 需要更细的前端信息时可使用 F12 打开 WebView2 开发者工具
-5. 查看 `harness-supervisor.log` 了解 DeepX 的进程恢复和回滚事件
+4. 需要提交 issue 时，优先使用 **导出脱敏诊断包**
+5. 需要更细的前端信息时可使用 F12 打开 WebView2 开发者工具
 
-如果问题仍然存在，请在 GitHub 提交 issue，并附上 DeepX 版本、Harness 版本和相关日志片段。不要公开粘贴认证 token 或其他私密凭据。
+诊断包默认不包含凭据、Harness session 文件或 WebView 页面访问日志。即便如此，在公开上传前仍建议快速检查压缩包内容，避免把与你的问题无关的私人信息一起提交。
 
 ## 开发
 

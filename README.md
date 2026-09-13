@@ -16,8 +16,9 @@ DeepX does not replace or modify Harness business logic. Its job is to make star
 
 - **Harness stays inside DeepX** — no default-browser handoff.
 - **Dynamic local endpoint** — new Harness processes use an automatically selected loopback port instead of relying on fixed port `3080`; DeepX can still rediscover older fixed-port instances during upgrades.
-- **Process supervision and recovery** — DeepX watches the Harness it owns and can recover from unexpected exits or repeated health failures.
+- **Process supervision and recovery** — DeepX watches the Harness it owns, distinguishes startup/recovery/update/rollback/failure states, and can recover from unexpected exits or repeated health failures.
 - **Transactional Harness updates** — updates are prepared and validated in staging, then activated; a failed launch automatically rolls back to the previous runtime.
+- **Single-instance desktop behavior** — launching DeepX again activates the existing window instead of starting a second Harness stack.
 - **DeepX self-update** — the latest Windows installer is fetched from GitHub Releases only when the user requests an update.
 - **Route restore** — after a Harness restart, DeepX can return to the previous WebView route without modifying Harness session storage.
 - **Redacted logs** — Harness authentication tokens are not persisted in DeepX startup logs.
@@ -39,6 +40,8 @@ Each release also publishes a separate `deepx-runtime-v<version>.zip`. This keep
 
 If no valid runtime exists in the application-data directory, DeepX downloads and extracts `deepx-runtime-v<version>.zip` from the **matching GitHub Release**, then prepares the marketplace and starts Harness. First launch therefore needs access to GitHub Releases.
 
+During the download, DeepX shows transferred MB, total size when available, and current throughput. Interrupted downloads are removed, and GitHub Release connectivity failures are reported explicitly.
+
 The startup surface stays on one “preparing” state until Harness actually takes over the WebView.
 
 After the runtime has been prepared, normal launches do not redownload or reinstall dependencies. Network access is needed again only for explicit updates or recovery paths that require a fresh runtime.
@@ -57,7 +60,7 @@ The top toolbar provides:
 The settings panel focuses only on changing or actionable information:
 
 **Connection**
-- Harness runtime status
+- Harness lifecycle state (starting / running / recovering / updating / rolling back / failed)
 - current local endpoint
 - restart Harness
 
@@ -70,6 +73,9 @@ The settings panel focuses only on changing or actionable information:
 **Maintenance**
 - repair plugin environment
 - migrate Codex skills
+- export a redacted diagnostics bundle
+
+The diagnostics ZIP contains only a compact DeepX/Harness runtime summary and recent supervisor/startup logs. Authentication query tokens and the user home path are redacted; `.credentials` and Harness session files are not included.
 
 A compact footer shows the current DeepX and Harness versions.
 
@@ -109,10 +115,10 @@ If Harness does not connect or starts incorrectly:
 1. open **Settings → Startup log**
 2. try **Restart Harness**
 3. for plugin-related issues, try **Repair plugin environment**
-4. use F12 for WebView2 developer tools when frontend diagnostics are needed
-5. inspect `harness-supervisor.log` for DeepX process recovery and rollback events
+4. when filing an issue, prefer **Export redacted diagnostics**
+5. use F12 for WebView2 developer tools when deeper frontend diagnostics are needed
 
-When opening a GitHub issue, include the DeepX version, Harness version, and relevant log excerpts. Do not post authentication tokens or other private credentials.
+The diagnostics bundle excludes credentials, Harness session files, and WebView page-access logs by default. Even so, review the ZIP briefly before uploading it publicly so unrelated private information is not shared with an issue.
 
 ## Development
 
