@@ -767,7 +767,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
-                window_state::handle_event(window, event);
+                if let Some(webview) = window.app_handle().get_webview_window("main") {
+                    window_state::handle_event(&webview, event);
+                }
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     let _ = window.hide();
                     api.prevent_close();
