@@ -592,16 +592,18 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
 
 mod commands;
 mod runtime;
+mod window_state;
 pub(crate) use runtime::{
-    clear_harness_endpoint, configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
-    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
-    ensure_profile_store_compatibility, harness_auth_cookie, harness_base_url, harness_child_port,
-    harness_package_manifest, harness_port, harness_process_running, healthy, healthy_on_port,
-    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, profile_dir, remember_harness_launch_url, repair_marketplace_metadata,
+    clear_harness_endpoint, clear_harness_pid_if, configure_runtime_environment, dsh_entry,
+    dsh_home, emit_progress, ensure_cross_harness_compatibility,
+    ensure_legacy_preset_compatibility, ensure_profile_store_compatibility, harness_auth_cookie,
+    harness_base_url, harness_child_port, harness_package_manifest, harness_port,
+    harness_process_running, healthy, healthy_on_port, hidden, install_runtime,
+    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin, profile_dir,
+    remember_harness_launch_url, remember_harness_pid, repair_marketplace_metadata,
     rollback_runtime, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
-    stop_harness_service, take_harness_boot_url, update_runtime, valid_runtime,
-    write_no_browser_patch,
+    stop_harness_service, take_harness_boot_url, tracked_harness_pid, update_runtime,
+    valid_runtime, write_no_browser_patch,
 };
 
 fn activate_main(app: &AppHandle) {
@@ -765,6 +767,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
+                if let Some(webview) = window.app_handle().get_webview_window("main") {
+                    window_state::handle_event(&webview, event);
+                }
                 if let WindowEvent::CloseRequested { api, .. } = event {
                     let _ = window.hide();
                     api.prevent_close();
@@ -871,25 +876,26 @@ pub fn run() {
                 .build(app)?;
 
             if let Some(window) = app.get_webview_window("main") {
+                window_state::initialize(app.handle(), &window);
                 let _ = window.show();
                 // Keep the main webview at 1.0 zoom so CSS px == physical px,
                 // matching the 40px toolbar row that the harness page hosts.
                 let _ = window.set_zoom(1.0);
             }
-            // Toolbar watchdog: re-assert the injected toolbar every ~1.6s.
-            // navigate()-based reloads race the on_page_load injection (the eval
-            // can land in the doomed document, or a later wipe kills the timers),
-            // which made the toolbar vanish after clicking refresh. The script is
-            // idempotent and DOM-guarded, so while healthy this eval is a cheap
-            // no-op, and after any wipe it re-mounts within one tick.
+            // Toolbar watchdog: page-load injection is the primary path. This
+            // slower fallback only re-asserts the idempotent script while the
+            // window is visible, avoiding continuous WebView work while DeepX
+            // sits hidden in the tray.
             let toolbar_watchdog = app.handle().clone();
             std::thread::spawn(move || loop {
-                std::thread::sleep(std::time::Duration::from_millis(1600));
+                std::thread::sleep(std::time::Duration::from_secs(3));
                 let handle = toolbar_watchdog.clone();
                 let task = handle.clone();
                 let _ = handle.run_on_main_thread(move || {
                     if let Some(webview) = task.get_webview_window("main") {
-                        let _ = webview.eval(TOOLBAR_SCRIPT);
+                        if webview.is_visible().unwrap_or(false) {
+                            let _ = webview.eval(TOOLBAR_SCRIPT);
+                        }
                     }
                 });
             });

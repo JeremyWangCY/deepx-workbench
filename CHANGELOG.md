@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-09-13
+
+### Added
+
+- Persist and restore the main window position, size, and maximized state with debounced writes. Restored geometry is clamped to the currently available monitor work areas so display changes cannot leave DeepX off-screen.
+- Track DeepX-owned Harness process IDs in memory and use native Windows process APIs for the normal owned-process liveness and stop paths.
+- Record recent Harness launch, recovery, and health-probe timings in supervisor logs, runtime status, and the redacted diagnostics summary for performance regression analysis.
+
+### Changed
+
+- When a tracked Harness PID is known, endpoint rediscovery probes only that process before falling back to legacy CIM discovery; normal healthy operation no longer needs broad process enumeration.
+- The toolbar fallback watchdog now runs every 3 seconds and only while the main window is visible, reducing hidden-to-tray WebView work while keeping page-load injection as the primary path.
+- Harness `starting` state now begins after runtime-environment configuration succeeds, preventing pre-launch configuration failures from leaving a stale starting state.
+
+### Fixed
+
+- Clear tracked Harness ownership and cached endpoint data consistently after process exit or failed startup.
+
 ## [0.1.73] - 2026-09-13
 
 ### Added

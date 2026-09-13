@@ -1,13 +1,14 @@
 use crate::{
-    clear_harness_endpoint, configure_runtime_environment, dsh_entry, dsh_home, emit_progress,
-    ensure_cross_harness_compatibility, ensure_legacy_preset_compatibility,
-    ensure_profile_store_compatibility, harness_auth_cookie, harness_base_url, harness_child_port,
-    harness_package_manifest, harness_port, harness_process_running, healthy, healthy_on_port,
-    hidden, install_runtime, marketplace_installed, marketplace_version, migrate_private_plugins,
-    node_bin, profile_dir, remember_harness_launch_url, repair_marketplace_metadata,
+    clear_harness_endpoint, clear_harness_pid_if, configure_runtime_environment, dsh_entry,
+    dsh_home, emit_progress, ensure_cross_harness_compatibility,
+    ensure_legacy_preset_compatibility, ensure_profile_store_compatibility, harness_auth_cookie,
+    harness_base_url, harness_child_port, harness_package_manifest, harness_port,
+    harness_process_running, healthy, healthy_on_port, hidden, install_runtime,
+    marketplace_installed, marketplace_version, migrate_private_plugins, node_bin, profile_dir,
+    remember_harness_launch_url, remember_harness_pid, repair_marketplace_metadata,
     rollback_runtime, run_output_with_timeout, runtime_dir, seed_bundled_marketplace,
-    stop_harness_service, take_harness_boot_url, update_runtime, valid_runtime,
-    write_no_browser_patch,
+    stop_harness_service, take_harness_boot_url, tracked_harness_pid, update_runtime,
+    valid_runtime, write_no_browser_patch,
 };
 use serde::Serialize;
 use std::{
@@ -15,7 +16,7 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewWindow};
@@ -66,6 +67,9 @@ static HARNESS_RECOVERY_ACTIVE: AtomicBool = AtomicBool::new(false);
 static HARNESS_LAUNCH_ACTIVE: AtomicBool = AtomicBool::new(false);
 static HARNESS_ROUTE_RESTORE_PENDING: AtomicBool = AtomicBool::new(false);
 static HARNESS_LIFECYCLE_STATE: AtomicU8 = AtomicU8::new(HarnessLifecycleState::Stopped as u8);
+static LAST_LAUNCH_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_RECOVERY_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_HEALTH_PROBE_MS: AtomicU64 = AtomicU64::new(0);
 
 struct MaintenanceGuard;
 
@@ -115,6 +119,22 @@ fn unix_millis() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
+}
+
+fn elapsed_millis(started: Instant) -> u64 {
+    started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
+}
+
+fn metric_value(metric: &AtomicU64) -> Option<u64> {
+    let value = metric.load(Ordering::SeqCst);
+    (value > 0).then_some(value)
+}
+
+async fn timed_healthy(app: &AppHandle) -> bool {
+    let started = Instant::now();
+    let result = healthy(app).await;
+    LAST_HEALTH_PROBE_MS.store(elapsed_millis(started), Ordering::SeqCst);
+    result
 }
 
 fn append_supervisor_log(app: &AppHandle, detail: impl AsRef<str>) {
@@ -246,6 +266,7 @@ fn watch_harness_exit(app: AppHandle, mut child: Child) {
                 append_supervisor_log(&app, format!("EXIT_WAIT_ERROR pid={pid} error={error}"))
             }
         }
+        let _ = clear_harness_pid_if(pid);
         clear_harness_endpoint();
         if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) == 0 {
             set_harness_state(&app, HarnessLifecycleState::Stopped);
@@ -264,10 +285,17 @@ async fn recover_harness(app: AppHandle) {
         return;
     };
     set_harness_state(&app, HarnessLifecycleState::Recovering);
+    let recovery_started = Instant::now();
 
     const BACKOFF_SECONDS: [u64; 5] = [1, 2, 5, 10, 30];
     for (index, delay) in BACKOFF_SECONDS.into_iter().enumerate() {
-        if healthy(&app).await {
+        if timed_healthy(&app).await {
+            let recovery_ms = elapsed_millis(recovery_started);
+            LAST_RECOVERY_MS.store(recovery_ms, Ordering::SeqCst);
+            append_supervisor_log(
+                &app,
+                format!("RECOVERY_ALREADY_HEALTHY total_ms={recovery_ms}"),
+            );
             set_harness_state(&app, HarnessLifecycleState::Healthy);
             return;
         }
@@ -288,8 +316,13 @@ async fn recover_harness(app: AppHandle) {
 
         match launch_harness(app.clone()).await {
             Ok(()) => {
-                if healthy(&app).await {
-                    append_supervisor_log(&app, format!("RECOVERY_OK attempt={}", index + 1));
+                if timed_healthy(&app).await {
+                    let recovery_ms = elapsed_millis(recovery_started);
+                    LAST_RECOVERY_MS.store(recovery_ms, Ordering::SeqCst);
+                    append_supervisor_log(
+                        &app,
+                        format!("RECOVERY_OK attempt={} total_ms={recovery_ms}", index + 1),
+                    );
                     set_harness_state(&app, HarnessLifecycleState::Healthy);
                     let _ = show_harness(app.clone()).await;
                     return;
@@ -302,7 +335,12 @@ async fn recover_harness(app: AppHandle) {
         }
     }
 
-    append_supervisor_log(&app, "RECOVERY_GAVE_UP attempts=5");
+    let recovery_ms = elapsed_millis(recovery_started);
+    LAST_RECOVERY_MS.store(recovery_ms, Ordering::SeqCst);
+    append_supervisor_log(
+        &app,
+        format!("RECOVERY_GAVE_UP attempts=5 total_ms={recovery_ms}"),
+    );
     set_harness_state(&app, HarnessLifecycleState::Failed);
 }
 
@@ -313,13 +351,19 @@ pub(crate) fn start_harness_watchdog(app: AppHandle) {
         loop {
             if HARNESS_MAINTENANCE_DEPTH.load(Ordering::SeqCst) > 0
                 || !valid_runtime(&app)
-                || healthy(&app).await
+                || timed_healthy(&app).await
             {
                 consecutive_failures = 0;
             } else {
                 consecutive_failures = consecutive_failures.saturating_add(1);
                 if consecutive_failures >= 2 {
-                    append_supervisor_log(&app, "WATCHDOG_UNHEALTHY consecutive=2");
+                    append_supervisor_log(
+                        &app,
+                        format!(
+                            "WATCHDOG_UNHEALTHY consecutive=2 probe_ms={}",
+                            LAST_HEALTH_PROBE_MS.load(Ordering::SeqCst)
+                        ),
+                    );
                     recover_harness(app.clone()).await;
                     consecutive_failures = 0;
                 }
@@ -337,6 +381,10 @@ pub struct RuntimeStatus {
     pub port: Option<u16>,
     pub auth_cookie: Option<String>,
     pub lifecycle_state: String,
+    pub tracked_pid: Option<u32>,
+    pub last_launch_ms: Option<u64>,
+    pub last_recovery_ms: Option<u64>,
+    pub last_health_probe_ms: Option<u64>,
     pub deepx_version: String,
     pub version: Option<String>,
 }
@@ -517,6 +565,10 @@ fn export_diagnostic_bundle(app: &AppHandle) -> Result<PathBuf, String> {
         "lifecycle_state": current_harness_state().as_str(),
         "endpoint": endpoint,
         "runtime_ready": valid_runtime(app),
+        "tracked_pid": tracked_harness_pid(),
+        "last_launch_ms": metric_value(&LAST_LAUNCH_MS),
+        "last_recovery_ms": metric_value(&LAST_RECOVERY_MS),
+        "last_health_probe_ms": metric_value(&LAST_HEALTH_PROBE_MS),
         "platform": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
         "generated_at_unix_ms": unix_millis(),
@@ -666,7 +718,12 @@ fn open_path_in_explorer(app: &AppHandle, path: &std::path::Path) {
 pub async fn runtime_status(app: AppHandle, webview: WebviewWindow) -> RuntimeStatus {
     let port = harness_port(&app);
     let service_running = match port {
-        Some(port) => healthy_on_port(port).await,
+        Some(port) => {
+            let started = Instant::now();
+            let result = healthy_on_port(port).await;
+            LAST_HEALTH_PROBE_MS.store(elapsed_millis(started), Ordering::SeqCst);
+            result
+        }
         None => false,
     };
     let auth_cookie = port
@@ -689,6 +746,10 @@ pub async fn runtime_status(app: AppHandle, webview: WebviewWindow) -> RuntimeSt
         port,
         auth_cookie,
         lifecycle_state: lifecycle.as_str().to_string(),
+        tracked_pid: tracked_harness_pid(),
+        last_launch_ms: metric_value(&LAST_LAUNCH_MS),
+        last_recovery_ms: metric_value(&LAST_RECOVERY_MS),
+        last_health_probe_ms: metric_value(&LAST_HEALTH_PROBE_MS),
         deepx_version: app.package_info().version.to_string(),
         version: package_version(harness_package_manifest(&app)),
     }
@@ -841,7 +902,7 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     let _ = ensure_legacy_preset_compatibility(&app);
     let _ = ensure_profile_store_compatibility(&app);
 
-    let service_healthy = healthy(&app).await;
+    let service_healthy = timed_healthy(&app).await;
     if service_healthy {
         if !migrated {
             set_harness_state(&app, HarnessLifecycleState::Healthy);
@@ -860,7 +921,6 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
         set_harness_state(&app, HarnessLifecycleState::Failed);
         return Err("Harness 尚未安装".to_string());
     }
-    set_harness_state(&app, HarnessLifecycleState::Starting);
 
     let mut command = Command::new(node_bin(&app));
     command.arg(dsh_entry(&app)).args([
@@ -892,6 +952,8 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     drop(log);
     hidden(&mut command);
     configure_runtime_environment(&mut command, &app)?;
+    let launch_started = Instant::now();
+    set_harness_state(&app, HarnessLifecycleState::Starting);
     let mut child = match command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -906,6 +968,7 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     };
 
     let pid = child.id();
+    remember_harness_pid(pid);
     if let Some(stdout) = child.stdout.take() {
         pipe_harness_output(app.clone(), stdout, log_path.clone(), "stdout");
     }
@@ -916,13 +979,25 @@ pub async fn launch_harness(app: AppHandle) -> Result<(), String> {
     match wait_for_harness(&mut child, &log_path).await {
         Ok(()) => {
             let port = harness_child_port(pid).unwrap_or_default();
-            append_supervisor_log(&app, format!("HEALTHY pid={pid} port={port}"));
+            let launch_ms = elapsed_millis(launch_started);
+            LAST_LAUNCH_MS.store(launch_ms, Ordering::SeqCst);
+            append_supervisor_log(
+                &app,
+                format!("HEALTHY pid={pid} port={port} launch_ms={launch_ms}"),
+            );
             set_harness_state(&app, HarnessLifecycleState::Healthy);
             watch_harness_exit(app.clone(), child);
             Ok(())
         }
         Err(error) => {
-            append_supervisor_log(&app, format!("START_FAILED pid={pid} error={error}"));
+            let launch_ms = elapsed_millis(launch_started);
+            LAST_LAUNCH_MS.store(launch_ms, Ordering::SeqCst);
+            let _ = clear_harness_pid_if(pid);
+            clear_harness_endpoint();
+            append_supervisor_log(
+                &app,
+                format!("START_FAILED pid={pid} launch_ms={launch_ms} error={error}"),
+            );
             set_harness_state(&app, HarnessLifecycleState::Failed);
             Err(error)
         }
