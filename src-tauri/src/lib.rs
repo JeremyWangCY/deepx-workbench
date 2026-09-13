@@ -102,6 +102,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   function getInvoke() { var i = window.__TAURI_INTERNALS__; return i && i.invoke ? i.invoke.bind(i) : null; }
   let panel = null;
   let settingsPanel = null;
+  let settingsRefreshRuntime = null;
   let busy = false;
   let progressValue = 0;
   let statusMessage = '';
@@ -238,7 +239,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     var ti = getInvoke();
     if (!ti) { return; }
     if (panel) { panel.remove(); panel = null; return; }
-    if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; }
+    if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; settingsRefreshRuntime = null; }
     panel = document.createElement('div');
     panel.className = 'deepx-panel';
     const ut = toolbar && toolbar.querySelector('.deepx-update-toggle');
@@ -271,7 +272,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       + '<div class="deepx-quick-grid">'
       + '<button class="deepx-btn deepx-btn-sub deepx-repair-btn">修复插件环境</button>'
       + '<button class="deepx-btn deepx-btn-sub deepx-migrate-skills-btn">迁移 Codex 技能</button>'
-      + '</div></div>'
+      + '</div>'
+      + '<button class="deepx-btn deepx-btn-sub deepx-export-diagnostics-btn">导出脱敏诊断包</button></div>'
       + '<div class="deepx-settings-feedback"></div>'
       + '<div class="deepx-settings-meta">DeepX <span class="deepx-settings-deepx-ver">' + deepxVer + '</span> · Harness <span class="deepx-settings-harness-ver">' + harnessVer + '</span></div>';
 
@@ -302,7 +304,20 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
           if (st && st.endpoint) { endpoint.title = st.endpoint; }
         }
         if (badge) {
-          if (st && st.service_running) {
+          const lifecycle = (st && st.lifecycle_state) || '';
+          const busyStates = {
+            starting: '启动中',
+            recovering: '自动恢复中',
+            updating: '更新中',
+            rolling_back: '正在回滚'
+          };
+          if (busyStates[lifecycle]) {
+            badge.className = 'deepx-badge deepx-badge-busy deepx-service-badge';
+            badge.textContent = busyStates[lifecycle];
+          } else if (lifecycle === 'failed') {
+            badge.className = 'deepx-badge deepx-badge-err deepx-service-badge';
+            badge.textContent = '启动失败';
+          } else if ((st && st.service_running) || lifecycle === 'healthy') {
             badge.className = 'deepx-badge deepx-service-badge';
             badge.textContent = '运行中';
           } else {
@@ -319,6 +334,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
         setFeedback('读取运行状态失败：' + e, true);
       }
     };
+    settingsRefreshRuntime = refreshRuntime;
 
     const closeBtn = settingsPanel.querySelector('.deepx-panel-close');
     if (closeBtn) { closeBtn.onclick = toggleSettings; }
@@ -427,12 +443,34 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       };
     }
 
+    const exportDiagnosticsBtn = settingsPanel.querySelector('.deepx-export-diagnostics-btn');
+    if (exportDiagnosticsBtn) {
+      exportDiagnosticsBtn.onclick = async function () {
+        var ri = getInvoke();
+        if (!ri || exportDiagnosticsBtn.disabled) { return; }
+        exportDiagnosticsBtn.disabled = true;
+        exportDiagnosticsBtn.textContent = '正在导出...';
+        setFeedback('正在生成脱敏诊断包...', false);
+        try {
+          await ri('window_action', { action: 'export_diagnostics' });
+          setFeedback('诊断包已生成，并已打开保存位置', false);
+        } catch (e) {
+          setFeedback('导出诊断包失败：' + e, true);
+        } finally {
+          if (exportDiagnosticsBtn.isConnected) {
+            exportDiagnosticsBtn.disabled = false;
+            exportDiagnosticsBtn.textContent = '导出脱敏诊断包';
+          }
+        }
+      };
+    }
+
     refreshRuntime();
   }
   function toggleSettings() {
     var ti = getInvoke();
     if (!ti) { return; }
-    if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; return; }
+    if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; settingsRefreshRuntime = null; return; }
     if (panel) { panel.remove(); panel = null; }
     settingsPanel = document.createElement('div');
     settingsPanel.className = 'deepx-panel deepx-settings-panel';
@@ -519,6 +557,11 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       if (p.percentage != null) { setProgress(p.percentage); }
       if (p.detail != null) { setStatus(String(p.detail), !!(p.error)); }
     }) }).catch(function () {});
+    internals.invoke('plugin:event|listen', { event: 'harness-lifecycle', handler: internals.transformCallback(function () {
+      if (settingsPanel && settingsRefreshRuntime) {
+        settingsRefreshRuntime().catch(function () {});
+      }
+    }) }).catch(function () {});
   }
   mountToolbar();
   document.addEventListener('keydown', function (e) {
@@ -528,7 +571,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     }
     if (e.key === 'Escape') {
       if (panel) { panel.remove(); panel = null; }
-      if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; }
+      if (settingsPanel) { settingsPanel.remove(); settingsPanel = null; settingsRefreshRuntime = null; }
     }
   });
   document.addEventListener('pointerdown', function (e) {
@@ -539,6 +582,7 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
     if (settingsPanel && !settingsPanel.contains(e.target) && (!toolbar || !toolbar.querySelector('.deepx-settings-toggle') || !toolbar.querySelector('.deepx-settings-toggle').contains(e.target))) {
       settingsPanel.remove();
       settingsPanel = null;
+      settingsRefreshRuntime = null;
     }
   });
   window.__deepxToolbar = { remount: remount, toolbar: toolbar, hasInvoke: !!invoke, togglePanel: togglePanel, toggleSettings: toggleSettings };
@@ -645,7 +689,7 @@ fn redact_url_for_log(url: &tauri::Url) -> String {
     let pairs = redacted
         .query_pairs()
         .map(|(key, value)| {
-            if key == "token" {
+            if key.eq_ignore_ascii_case("token") {
                 (key.into_owned(), "<redacted>".to_string())
             } else {
                 (key.into_owned(), value.into_owned())
