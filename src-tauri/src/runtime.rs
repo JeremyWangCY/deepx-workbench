@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{
-        atomic::{AtomicU16, Ordering},
+        atomic::{AtomicU16, AtomicU32, Ordering},
         Mutex, OnceLock,
     },
     time::{Duration, Instant},
@@ -21,6 +21,7 @@ pub struct Progress {
 const RUNTIME_MARKER: &str = ".deepx-runtime-ready";
 
 static HARNESS_PORT: AtomicU16 = AtomicU16::new(0);
+static HARNESS_PID: AtomicU32 = AtomicU32::new(0);
 static HARNESS_BOOT_URL: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 
 fn harness_boot_url_state() -> &'static Mutex<Option<String>> {
@@ -31,6 +32,23 @@ pub(crate) fn remember_harness_port(port: u16) {
     if port > 0 {
         HARNESS_PORT.store(port, Ordering::SeqCst);
     }
+}
+
+pub(crate) fn remember_harness_pid(pid: u32) {
+    if pid > 0 {
+        HARNESS_PID.store(pid, Ordering::SeqCst);
+    }
+}
+
+pub(crate) fn tracked_harness_pid() -> Option<u32> {
+    let pid = HARNESS_PID.load(Ordering::SeqCst);
+    (pid > 0).then_some(pid)
+}
+
+pub(crate) fn clear_harness_pid_if(pid: u32) -> bool {
+    HARNESS_PID
+        .compare_exchange(pid, 0, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
 }
 
 pub(crate) fn remember_harness_launch_url(url: &str) -> Option<u16> {
@@ -923,9 +941,54 @@ fn harness_match_paths(app: &AppHandle) -> Option<(String, String)> {
     ))
 }
 
+#[cfg(windows)]
+fn windows_process_active(pid: u32) -> bool {
+    use windows::Win32::{
+        Foundation::{CloseHandle, STILL_ACTIVE},
+        System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
+    };
+
+    unsafe {
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else {
+            return false;
+        };
+        let mut exit_code = 0_u32;
+        let active = GetExitCodeProcess(handle, &mut exit_code).is_ok()
+            && exit_code == STILL_ACTIVE.0 as u32;
+        let _ = CloseHandle(handle);
+        active
+    }
+}
+
+#[cfg(windows)]
+fn terminate_windows_process(pid: u32) -> bool {
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE},
+    };
+
+    unsafe {
+        let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) else {
+            return false;
+        };
+        let terminated = TerminateProcess(handle, 1).is_ok();
+        let _ = CloseHandle(handle);
+        terminated
+    }
+}
+
 pub(crate) fn harness_process_running(app: &AppHandle) -> bool {
     #[cfg(windows)]
     {
+        if let Some(pid) = tracked_harness_pid() {
+            if windows_process_active(pid) {
+                return true;
+            }
+            let _ = clear_harness_pid_if(pid);
+            clear_harness_endpoint();
+            return false;
+        }
+
         let Some((entry, patch)) = harness_match_paths(app) else {
             return false;
         };
@@ -943,15 +1006,27 @@ $match = Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction Si
         $line.Contains('--no-open')
     }} |
     Select-Object -First 1
-if ($match) {{ Write-Output '1' }}"#
+if ($match) {{ Write-Output $match.ProcessId }}"#
         );
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        command
+        let pid = command
             .output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).trim() == "1")
-            .unwrap_or(false)
+            .ok()
+            .and_then(|output| {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .parse::<u32>()
+                    .ok()
+            })
+            .filter(|pid| *pid > 0);
+        if let Some(pid) = pid {
+            remember_harness_pid(pid);
+            true
+        } else {
+            false
+        }
     }
 
     #[cfg(not(windows))]
@@ -1005,6 +1080,16 @@ pub(crate) fn harness_port(app: &AppHandle) -> Option<u16> {
 
     #[cfg(windows)]
     {
+        if let Some(pid) = tracked_harness_pid() {
+            if windows_process_active(pid) {
+                if let Some(port) = harness_child_port(pid) {
+                    return Some(port);
+                }
+            } else {
+                let _ = clear_harness_pid_if(pid);
+            }
+        }
+
         let (entry, patch) = harness_match_paths(app)?;
         let script = format!(
             r#"$entry = '{entry}'
@@ -1024,22 +1109,18 @@ if ($process) {{
     $listener = Get-NetTCPConnection -State Listen -OwningProcess $process.ProcessId -ErrorAction SilentlyContinue |
         Where-Object {{ $_.LocalAddress -eq '127.0.0.1' -or $_.LocalAddress -eq '::1' }} |
         Select-Object -First 1
-    if ($listener) {{ Write-Output $listener.LocalPort }}
+    if ($listener) {{ Write-Output "$($process.ProcessId):$($listener.LocalPort)" }}
 }}"#
         );
         let mut command = Command::new("powershell.exe");
         command.args(["-NoProfile", "-NonInteractive", "-Command", &script]);
         hidden(&mut command);
-        let port = command
-            .output()
-            .ok()
-            .and_then(|output| {
-                String::from_utf8_lossy(&output.stdout)
-                    .trim()
-                    .parse::<u16>()
-                    .ok()
-            })
-            .filter(|port| *port > 0)?;
+        let output = command.output().ok()?;
+        let text = String::from_utf8_lossy(&output.stdout);
+        let (pid_text, port_text) = text.trim().split_once(':')?;
+        let pid = pid_text.parse::<u32>().ok().filter(|pid| *pid > 0)?;
+        let port = port_text.parse::<u16>().ok().filter(|port| *port > 0)?;
+        remember_harness_pid(pid);
         remember_harness_port(port);
         Some(port)
     }
@@ -1059,7 +1140,15 @@ pub(crate) fn harness_base_url(app: &AppHandle) -> Option<String> {
 pub(crate) fn stop_harness_service(app: &AppHandle) {
     #[cfg(windows)]
     {
+        if let Some(pid) = tracked_harness_pid() {
+            if terminate_windows_process(pid) {
+                clear_harness_endpoint();
+                return;
+            }
+        }
+
         let Some((entry, patch)) = harness_match_paths(app) else {
+            clear_harness_endpoint();
             return;
         };
         let script = format!(

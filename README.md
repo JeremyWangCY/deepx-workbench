@@ -19,9 +19,11 @@ DeepX does not replace or modify Harness business logic. Its job is to make star
 - **Process supervision and recovery** — DeepX watches the Harness it owns, distinguishes startup/recovery/update/rollback/failure states, and can recover from unexpected exits or repeated health failures.
 - **Transactional Harness updates** — updates are prepared and validated in staging, then activated; a failed launch automatically rolls back to the previous runtime.
 - **Single-instance desktop behavior** — launching DeepX again activates the existing window instead of starting a second Harness stack.
+- **Window state restore** — DeepX remembers the main window position, size, and maximized state, and safely repositions it when monitor layouts change.
 - **DeepX self-update** — the latest Windows installer is fetched from GitHub Releases only when the user requests an update.
 - **Route restore** — after a Harness restart, DeepX can return to the previous WebView route without modifying Harness session storage.
 - **Redacted logs** — Harness authentication tokens are not persisted in DeepX startup logs.
+- **Host performance telemetry** — supervisor diagnostics record recent launch, recovery, and health-probe timings without changing Harness business logic.
 - **System tray behavior** — closing the main window keeps the app available in the tray, where it can be shown, refreshed, restarted, or exited.
 
 ## Install
