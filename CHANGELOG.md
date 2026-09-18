@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Hid the Windows helper window used by the single-instance plugin so launching DeepX again activates the existing instance without leaving a visible helper window behind.
 - Vendored the patched single-instance plugin used by the Windows build so the helper-window behavior is deterministic in packaged releases.
 
+
 ## [0.1.71] - 2026-09-11
 
 ### Changed

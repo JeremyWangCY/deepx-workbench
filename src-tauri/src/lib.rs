@@ -205,8 +205,8 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
       else { setBusy(true, '正在准备插件市场...'); }
       await invoke(command);
       if (key === 'deepx') { setBusy(false, 'DeepX 更新安装器已启动'); }
-      else if (key === 'harness') { setBusy(false, 'Harness 已更新'); }
-      else { setBusy(false, '插件市场已更新'); }
+      else if (key === 'harness') { setBusy(false, 'Harness 已更新'); setProgress(100); }
+      else { setBusy(false, '插件市场已更新'); setProgress(100); }
       if (updateStatus && updateStatus[key]) {
         updateStatus[key].current = updateStatus[key].latest || updateStatus[key].current || '已安装';
         updateStatus[key].update_available = false;
@@ -545,15 +545,15 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   function win(action) { var wi = getInvoke(); if (wi) { wi('window_action', { action: action }).catch(function () {}); } }
   if (internals && internals.transformCallback && internals.invoke) {
-    internals.invoke('plugin:event|listen', { event: 'deepx-update-progress', handler: internals.transformCallback(function (payload) {
-      const p = payload || {};
+    internals.invoke('plugin:event|listen', { event: 'deepx-update-progress', target: { kind: 'Any' }, handler: internals.transformCallback(function (e) {
+      const p = (e && e.payload != null) ? e.payload : (e || {});
       if (p.percent != null) { setProgress(p.percent); }
-      if (panel && p.downloaded != null) {
+      if (p.downloaded != null) {
         setStatus(fmtBytes(p.downloaded) + ' / ' + fmtBytes(p.total) + ' · ' + fmtSpeed(p.speed) + ' · ' + fmtEta(p.total - p.downloaded, p.speed), false);
       }
     }) }).catch(function () {});
-    internals.invoke('plugin:event|listen', { event: 'runtime-progress', handler: internals.transformCallback(function (payload) {
-      const p = payload || {};
+    internals.invoke('plugin:event|listen', { event: 'runtime-progress', target: { kind: 'Any' }, handler: internals.transformCallback(function (e) {
+      const p = (e && e.payload != null) ? e.payload : (e || {});
       if (p.percentage != null) { setProgress(p.percentage); }
       if (p.detail != null) { setStatus(String(p.detail), !!(p.error)); }
     }) }).catch(function () {});
