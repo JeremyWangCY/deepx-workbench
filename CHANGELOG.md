@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-09-24
+
+### Changed
+
+- Align Harness modules from the selected dsh package manifest for the 0.1.5-rc.3, 0.1.7-rc.1, and 0.1.7-alpha.2 module layouts.
+- Remove stale Harness module declarations from the isolated update copy before installing a new version. Normal updates and bundled builds continue to select npm `latest`.
+- Allow `prepare-runtime.ps1 -HarnessVersion <version>` for isolated prerelease compatibility checks.
+
+### Fixed
+
+- Restore toolbar progress events for DeepX, Harness, and marketplace updates by registering Tauri event listeners with the required target and reading the event payload.
+- Complete the progress bar when Harness or marketplace updates succeed.
 ## [0.2.0] - 2026-09-13
 
 ### Added
@@ -48,7 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Hid the Windows helper window used by the single-instance plugin so launching DeepX again activates the existing instance without leaving a visible helper window behind.
 - Vendored the patched single-instance plugin used by the Windows build so the helper-window behavior is deterministic in packaged releases.
-
 
 ## [0.1.71] - 2026-09-11
 

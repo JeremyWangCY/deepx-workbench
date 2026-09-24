@@ -83,37 +83,6 @@ pub(crate) fn clear_harness_endpoint() {
     }
 }
 
-const REQUIRED_DSH_PEERS: [&str; 28] = [
-    "@deepseek-ai/cordis-plugin-group",
-    "@deepseek-ai/dsh-anonymous-user-id",
-    "@deepseek-ai/dsh-atomic-write",
-    "@deepseek-ai/dsh-attachment",
-    "@deepseek-ai/dsh-authorization",
-    "@deepseek-ai/dsh-bash-local",
-    "@deepseek-ai/dsh-code-runtime",
-    "@deepseek-ai/dsh-compaction",
-    "@deepseek-ai/dsh-fs",
-    "@deepseek-ai/dsh-hook-protocol",
-    "@deepseek-ai/dsh-invariants",
-    "@deepseek-ai/dsh-jobs",
-    "@deepseek-ai/dsh-output-retention",
-    "@deepseek-ai/dsh-sandbox",
-    "@deepseek-ai/dsh-scope",
-    "@deepseek-ai/dsh-sdk-protocol",
-    "@deepseek-ai/dsh-session-persistence",
-    "@deepseek-ai/dsh-session-query",
-    "@deepseek-ai/dsh-session-telemetry",
-    "@deepseek-ai/dsh-session-title-llm",
-    "@deepseek-ai/dsh-settings",
-    "@deepseek-ai/dsh-shell",
-    "@deepseek-ai/dsh-spill",
-    "@deepseek-ai/dsh-subagent-in-process-driver",
-    "@deepseek-ai/dsh-timeout",
-    "@deepseek-ai/dsh-util-time",
-    "@deepseek-ai/dsh-util-workspace-path",
-    "@deepseek-ai/dsh-workflow",
-];
-
 fn app_data(app: &AppHandle) -> PathBuf {
     app.path().app_data_dir().unwrap()
 }
@@ -222,9 +191,25 @@ fn package_version_at(manifest_path: &Path) -> Result<String, String> {
 }
 
 fn aligned_peer_packages_from_manifest(manifest_path: &Path, version: &str) -> Vec<String> {
-    let mut packages: Vec<String> = REQUIRED_DSH_PEERS.iter().map(|s| s.to_string()).collect();
-    if let Ok(manifest_content) = fs::read_to_string(manifest_path) {
+    let mut packages = vec!["@deepseek-ai/cordis-plugin-group".to_string()];
+    let mut manifests = vec![manifest_path.to_path_buf()];
+    if let Some(scope_dir) = manifest_path.parent().and_then(Path::parent) {
+        if let Ok(entries) = fs::read_dir(scope_dir) {
+            manifests.extend(
+                entries
+                    .flatten()
+                    .map(|entry| entry.path().join("package.json")),
+            );
+        }
+    }
+    for path in manifests {
+        let Ok(manifest_content) = fs::read_to_string(path) else {
+            continue;
+        };
         if let Ok(manifest) = serde_json::from_str::<serde_json::Value>(&manifest_content) {
+            if manifest.get("version").and_then(|v| v.as_str()) != Some(version) {
+                continue;
+            }
             for section in ["peerDependencies", "dependencies"] {
                 if let Some(deps) = manifest.get(section).and_then(|v| v.as_object()) {
                     for key in deps.keys() {
@@ -251,6 +236,24 @@ fn aligned_peer_packages_from_manifest(manifest_path: &Path, version: &str) -> V
             }
         })
         .collect()
+}
+
+fn remove_stale_harness_dependencies(root: &Path) -> Result<(), String> {
+    let path = root.join("package.json");
+    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&content).map_err(|error| error.to_string())?;
+    if let Some(dependencies) = manifest
+        .get_mut("dependencies")
+        .and_then(|v| v.as_object_mut())
+    {
+        dependencies.retain(|name, _| !name.starts_with("@deepseek-ai/dsh"));
+    }
+    fs::write(
+        path,
+        serde_json::to_vec_pretty(&manifest).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) fn marketplace_version(app: &AppHandle) -> Option<String> {
@@ -814,6 +817,7 @@ pub(crate) async fn update_runtime(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || copy_runtime_for_update(&source, &destination))
         .await
         .map_err(|error| format!("创建 Harness 更新副本异常: {error}"))??;
+    remove_stale_harness_dependencies(&staging)?;
 
     let install_options = [
         "install",
