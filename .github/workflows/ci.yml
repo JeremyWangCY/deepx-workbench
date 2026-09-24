@@ -40,6 +40,9 @@ jobs:
       - name: Typecheck frontend
         run: pnpm typecheck
 
+      - name: Check fullscreen toolbar layout
+        run: node scripts/test-toolbar-immersive.mjs
+
       - name: Lint Rust
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 

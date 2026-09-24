@@ -15,8 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- Restore toolbar progress events for DeepX, Harness, and marketplace updates by registering Tauri event listeners with the required target and reading the event payload.
+- Restore toolbar progress and Harness lifecycle events by registering Tauri event listeners with the required target and reading the progress payload.
 - Complete the progress bar when Harness or marketplace updates succeed.
+- Hide the DeepX toolbar while a plugin displays a viewport-sized fullscreen overlay, restoring it when the overlay closes so controls at the top remain accessible.
 
 ## [0.2.0] - 2026-09-13
 
