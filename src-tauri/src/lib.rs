@@ -200,6 +200,10 @@ const TOOLBAR_SCRIPT: &str = r###"(() => {
   }
   async function runAction(command, key) {
     if (busy || !invoke) { return; }
+    if (key === 'harness') {
+      location.assign((isLocal ? location.origin : 'http://tauri.localhost') + '/?update=harness');
+      return;
+    }
     try {
       if (key === 'deepx') { setBusy(true, '正在下载 DeepX 更新...'); }
       else if (key === 'harness') { setBusy(true, '正在更新 Harness...'); }

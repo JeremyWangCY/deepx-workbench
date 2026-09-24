@@ -213,7 +213,7 @@ fn aligned_peer_packages_from_manifest(manifest_path: &Path, version: &str) -> V
             for section in ["peerDependencies", "dependencies"] {
                 if let Some(deps) = manifest.get(section).and_then(|v| v.as_object()) {
                     for key in deps.keys() {
-                        if key.starts_with("@deepseek-ai/")
+                        if key.starts_with("@deepseek-ai/dsh")
                             && key != "@deepseek-ai/dsh"
                             && !packages.contains(key)
                         {
@@ -227,9 +227,7 @@ fn aligned_peer_packages_from_manifest(manifest_path: &Path, version: &str) -> V
     packages
         .into_iter()
         .map(|package| {
-            if package == "@deepseek-ai/cordis-plugin-group"
-                || !package.starts_with("@deepseek-ai/dsh")
-            {
+            if package == "@deepseek-ai/cordis-plugin-group" {
                 package
             } else {
                 format!("{package}@{version}")
@@ -247,7 +245,9 @@ fn remove_stale_harness_dependencies(root: &Path) -> Result<(), String> {
         .get_mut("dependencies")
         .and_then(|v| v.as_object_mut())
     {
-        dependencies.retain(|name, _| !name.starts_with("@deepseek-ai/dsh"));
+        dependencies.retain(|name, _| {
+            !name.starts_with("@deepseek-ai/") || name == "@deepseek-ai/cordis-plugin-group"
+        });
     }
     fs::write(
         path,
@@ -789,6 +789,39 @@ fn validate_runtime_at(root: &Path) -> Result<String, String> {
             return Err(format!(
                 "{package} 版本不一致: installed={installed} expected={version}"
             ));
+        }
+    }
+
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    if let Some(dependencies) = manifest
+        .get("dependencies")
+        .and_then(|value| value.as_object())
+    {
+        for (package, spec) in dependencies {
+            if !package.starts_with("@deepseek-ai/") || package.starts_with("@deepseek-ai/dsh") {
+                continue;
+            }
+            let Some(required) = spec.as_str() else {
+                continue;
+            };
+            if !required
+                .chars()
+                .next()
+                .is_some_and(|character| character.is_ascii_digit())
+            {
+                continue;
+            }
+            let installed =
+                package_version_at(&root.join("node_modules").join(package).join("package.json"))
+                    .map_err(|error| format!("{package} 校验失败: {error}"))?;
+            if installed != required {
+                return Err(format!(
+                    "{package} 版本不一致: installed={installed} expected={required}"
+                ));
+            }
         }
     }
 
@@ -1507,4 +1540,79 @@ pub(crate) fn ensure_cross_harness_compatibility(app: &AppHandle) -> Result<usiz
         }
     }
     Ok(count)
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::{
+        aligned_peer_packages_from_manifest, remove_stale_harness_dependencies, validate_runtime_at,
+    };
+    use std::{
+        fs,
+        path::Path,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn write(root: &Path, relative: &str, content: &str) {
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn keeps_exact_cordis_dependency_and_rejects_mismatched_runtime() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("deepx-runtime-test-{}-{nonce}", std::process::id()));
+        write(
+            &root,
+            "package.json",
+            r#"{"dependencies":{"@deepseek-ai/dsh":"^0.1.5-rc.2","@deepseek-ai/cordis-plugin-hmr":"^1.0.17","@deepseek-ai/cordis-plugin-group":"^1.0.2","pnpm":"11.22.0"}}"#,
+        );
+        write(&root, "node/node.exe", "");
+        write(&root, "node_modules/@deepseek-ai/dsh/lib/bin.js", "");
+        write(&root, "bin/pnpm.cmd", "");
+        write(
+            &root,
+            "node_modules/pnpm/package.json",
+            r#"{"version":"11.22.0"}"#,
+        );
+        write(&root, ".deepx-runtime-ready", "0.1.5-rc.3");
+        write(
+            &root,
+            "node_modules/@deepseek-ai/dsh/package.json",
+            r#"{"version":"0.1.5-rc.3","dependencies":{"@deepseek-ai/cordis-plugin-hmr":"1.0.17"}}"#,
+        );
+        write(
+            &root,
+            "node_modules/@deepseek-ai/cordis-plugin-hmr/package.json",
+            r#"{"version":"1.0.19"}"#,
+        );
+
+        let aligned = aligned_peer_packages_from_manifest(
+            &root.join("node_modules/@deepseek-ai/dsh/package.json"),
+            "0.1.5-rc.3",
+        );
+        assert!(!aligned
+            .iter()
+            .any(|package| package.contains("cordis-plugin-hmr")));
+        remove_stale_harness_dependencies(&root).unwrap();
+        let manifest = fs::read_to_string(root.join("package.json")).unwrap();
+        assert!(!manifest.contains("cordis-plugin-hmr"));
+        assert!(manifest.contains("cordis-plugin-group"));
+        assert!(validate_runtime_at(&root)
+            .unwrap_err()
+            .contains("cordis-plugin-hmr 版本不一致"));
+
+        write(
+            &root,
+            "node_modules/@deepseek-ai/cordis-plugin-hmr/package.json",
+            r#"{"version":"1.0.17"}"#,
+        );
+        assert_eq!(validate_runtime_at(&root).unwrap(), "0.1.5-rc.3");
+        fs::remove_dir_all(root).unwrap();
+    }
 }

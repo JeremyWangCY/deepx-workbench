@@ -4,6 +4,7 @@ import "./style.css";
 
 const root = document.querySelector("#app");
 const state = { progress: 0, detail: "正在准备...", error: "" };
+const updatingHarness = new URLSearchParams(location.search).get("update") === "harness";
 
 function render() {
   const page = root.querySelector("main");
@@ -20,7 +21,7 @@ function render() {
 
     const retryBtn = document.createElement("button");
     retryBtn.className = "deepx-panel-btn";
-    retryBtn.textContent = "重试连接";
+    retryBtn.textContent = updatingHarness ? "重试更新" : "重试连接";
     retryBtn.onclick = () => {
       state.error = "";
       state.detail = "正在重新连接...";
@@ -30,13 +31,13 @@ function render() {
 
     const restartBtn = document.createElement("button");
     restartBtn.className = "deepx-panel-btn deepx-panel-btn-sub";
-    restartBtn.textContent = "重启服务";
+    restartBtn.textContent = updatingHarness ? "返回 Harness" : "重启服务";
     restartBtn.onclick = async () => {
       state.error = "";
-      state.detail = "正在重启 Harness 服务...";
+      state.detail = updatingHarness ? "正在返回 Harness..." : "正在重启 Harness 服务...";
       render();
       try {
-        await invoke("restart_harness");
+        await invoke(updatingHarness ? "show_harness" : "restart_harness");
       } catch (err) {
         state.error = String(err);
         render();
@@ -50,8 +51,9 @@ function render() {
   root.appendChild(main);
 }
 
+if (updatingHarness) state.detail = "正在更新 Harness...";
 render();
-void listen("runtime-progress", (event) => {
+const progressReady = listen("runtime-progress", (event) => {
   state.progress = Number(event.payload?.percentage || 0);
   state.detail = event.payload?.detail || state.detail;
   render();
@@ -59,6 +61,10 @@ void listen("runtime-progress", (event) => {
 
 async function boot() {
   try {
+    if (updatingHarness) {
+      await invoke("update_harness");
+      return;
+    }
     const [status, marketplace] = await Promise.all([
       invoke("runtime_status"),
       invoke("marketplace_status"),
@@ -75,4 +81,7 @@ async function boot() {
   }
 }
 
-void boot();
+void progressReady.then(boot).catch((error) => {
+  state.error = String(error);
+  render();
+});

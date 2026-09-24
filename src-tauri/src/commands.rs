@@ -1254,14 +1254,25 @@ pub async fn update_harness(app: AppHandle) -> Result<(), String> {
         return Err(error);
     }
     if let Err(error) = update_runtime(app.clone()).await {
-        set_harness_state(&app, HarnessLifecycleState::Failed);
-        return Err(error);
+        return match launch_harness(app.clone()).await {
+            Ok(()) => {
+                set_harness_state(&app, HarnessLifecycleState::Healthy);
+                Err(format!("Harness 更新失败，旧版已重新启动：{error}"))
+            }
+            Err(restart_error) => {
+                set_harness_state(&app, HarnessLifecycleState::Failed);
+                Err(format!(
+                    "Harness 更新失败，旧版重新启动也失败：{error}；重启错误：{restart_error}"
+                ))
+            }
+        };
     }
     emit_progress(&app, 94, "正在验证新版 Harness 启动...");
 
     match launch_harness(app.clone()).await {
         Ok(()) => {
             set_harness_state(&app, HarnessLifecycleState::Healthy);
+            emit_progress(&app, 100, "Harness 已更新");
             show_harness(app).await
         }
         Err(update_error) => {
@@ -1274,7 +1285,6 @@ pub async fn update_harness(app: AppHandle) -> Result<(), String> {
             match rollback_runtime(&app) {
                 Ok(true) => match launch_harness(app.clone()).await {
                     Ok(()) => {
-                        let _ = show_harness(app.clone()).await;
                         append_supervisor_log(&app, "UPDATE_ROLLBACK_OK");
                         set_harness_state(&app, HarnessLifecycleState::Healthy);
                         Err(format!(
