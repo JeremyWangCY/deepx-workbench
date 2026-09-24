@@ -1,5 +1,6 @@
 param(
-    [string]$Destination = (Join-Path $PSScriptRoot "..\src-tauri\resources\runtime")
+    [string]$Destination = (Join-Path $PSScriptRoot "..\src-tauri\resources\runtime"),
+    [string]$HarnessVersion = "latest"
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,7 +10,7 @@ $existingNode = Join-Path $destination "node\node.exe"
 $existingDsh = Join-Path $destination "node_modules\@deepseek-ai\dsh\lib\bin.js"
 $existingPnpm = Join-Path $destination "bin\pnpm.cmd"
 $existingMarketplace = Join-Path $destination "marketplace-profile\package.json"
-if ((Test-Path $marker) -and (Test-Path $existingNode) -and (Test-Path $existingDsh) -and (Test-Path $existingPnpm) -and (Test-Path $existingMarketplace)) {
+if ($HarnessVersion -eq "latest" -and (Test-Path $marker) -and (Test-Path $existingNode) -and (Test-Path $existingDsh) -and (Test-Path $existingPnpm) -and (Test-Path $existingMarketplace)) {
     return
 }
 
@@ -20,35 +21,7 @@ $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("deepx-runtime-" + [gu
 $buildDestination = Join-Path $temporary "runtime"
 $archive = Join-Path $temporary "node.zip"
 $nodeRoot = Join-Path $temporary ("node-" + $nodeVersion + "-win-x64")
-$peerNames = @(
-    "@deepseek-ai/dsh-anonymous-user-id",
-    "@deepseek-ai/dsh-atomic-write",
-    "@deepseek-ai/dsh-attachment",
-    "@deepseek-ai/dsh-authorization",
-    "@deepseek-ai/dsh-bash-local",
-    "@deepseek-ai/dsh-code-runtime",
-    "@deepseek-ai/dsh-compaction",
-    "@deepseek-ai/dsh-fs",
-    "@deepseek-ai/dsh-hook-protocol",
-    "@deepseek-ai/dsh-invariants",
-    "@deepseek-ai/dsh-jobs",
-    "@deepseek-ai/dsh-output-retention",
-    "@deepseek-ai/dsh-sandbox",
-    "@deepseek-ai/dsh-scope",
-    "@deepseek-ai/dsh-sdk-protocol",
-    "@deepseek-ai/dsh-session-persistence",
-    "@deepseek-ai/dsh-session-query",
-    "@deepseek-ai/dsh-session-telemetry",
-    "@deepseek-ai/dsh-session-title-llm",
-    "@deepseek-ai/dsh-settings",
-    "@deepseek-ai/dsh-shell",
-    "@deepseek-ai/dsh-spill",
-    "@deepseek-ai/dsh-subagent-in-process-driver",
-    "@deepseek-ai/dsh-timeout",
-    "@deepseek-ai/dsh-util-time",
-    "@deepseek-ai/dsh-util-workspace-path",
-    "@deepseek-ai/dsh-workflow"
-)
+$peerNames = @("@deepseek-ai/cordis-plugin-group")
 
 New-Item -ItemType Directory -Force -Path $temporary, $buildDestination | Out-Null
 & curl.exe --fail --location --retry 3 --retry-delay 3 --connect-timeout 30 --max-time 600 --output $archive "https://nodejs.org/dist/$nodeVersion/node-$nodeVersion-win-x64.zip"
@@ -64,7 +37,7 @@ Copy-Item -Path $nodeRoot -Destination (Join-Path $buildDestination "node") -Rec
 $node = Join-Path $buildDestination "node\node.exe"
 $npm = Join-Path $buildDestination "node\node_modules\npm\bin\npm-cli.js"
 $npmOptions = @("install", "--no-audit", "--no-fund", "--no-package-lock", "--legacy-peer-deps", "--fetch-timeout", "30000", "--fetch-retries", "1", "--maxsockets", "8", "--prefix", $buildDestination)
-& $node $npm $npmOptions "@deepseek-ai/dsh@latest" "@deepseek-ai/cordis-plugin-group"
+& $node $npm $npmOptions "@deepseek-ai/dsh@$HarnessVersion" "@deepseek-ai/cordis-plugin-group"
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to install the bundled DeepSeek Harness"
 }
@@ -88,6 +61,21 @@ foreach ($section in @("peerDependencies", "dependencies")) {
         foreach ($prop in $dshManifestData.$section.PSObject.Properties) {
             $name = $prop.Name
             if ($name -like "@deepseek-ai/*" -and $name -ne "@deepseek-ai/dsh" -and -not $extractedPeers.Contains($name)) {
+                [void]$extractedPeers.Add($name)
+            }
+        }
+    }
+}
+Get-ChildItem -LiteralPath (Join-Path $buildDestination "node_modules\@deepseek-ai") -Directory | ForEach-Object {
+    $manifestPath = Join-Path $_.FullName "package.json"
+    if (-not (Test-Path $manifestPath)) { return }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ($manifest.version -ne $dshVersion) { return }
+    foreach ($section in @("peerDependencies", "dependencies")) {
+        if (-not $manifest.$section) { continue }
+        foreach ($prop in $manifest.$section.PSObject.Properties) {
+            $name = $prop.Name
+            if ($name -like "@deepseek-ai/dsh*" -and $name -ne "@deepseek-ai/dsh" -and -not $extractedPeers.Contains($name)) {
                 [void]$extractedPeers.Add($name)
             }
         }

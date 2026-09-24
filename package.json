@@ -1,6 +1,6 @@
 {
   "name":"deepx-workbench",
-  "version":"0.2.0",
+  "version":"0.2.1",
   "private":true,
   "type":"module",
   "scripts":{"dev":"vite","prepare:runtime":"powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1","build":"vite build","tauri":"tauri","typecheck":"tsc --noEmit"},
