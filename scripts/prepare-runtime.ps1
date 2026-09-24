@@ -60,7 +60,7 @@ foreach ($section in @("peerDependencies", "dependencies")) {
     if ($dshManifestData.$section) {
         foreach ($prop in $dshManifestData.$section.PSObject.Properties) {
             $name = $prop.Name
-            if ($name -like "@deepseek-ai/*" -and $name -ne "@deepseek-ai/dsh" -and -not $extractedPeers.Contains($name)) {
+            if ($name -like "@deepseek-ai/dsh*" -and $name -ne "@deepseek-ai/dsh" -and -not $extractedPeers.Contains($name)) {
                 [void]$extractedPeers.Add($name)
             }
         }
@@ -91,6 +91,17 @@ $versionedPeers = $extractedPeers | ForEach-Object {
 & $node $npm $npmOptions $versionedPeers
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to align bundled DeepSeek Harness dependencies"
+}
+foreach ($prop in $dshManifestData.dependencies.PSObject.Properties) {
+    $name = $prop.Name
+    $required = [string]$prop.Value
+    if ($name -notlike "@deepseek-ai/*" -or $name -like "@deepseek-ai/dsh*" -or $required -notmatch '^[0-9]') { continue }
+    $installedManifest = Join-Path $buildDestination "node_modules\$name\package.json"
+    if (-not (Test-Path $installedManifest)) { throw "Bundled Harness dependency is missing: $name" }
+    $installedVersion = (Get-Content -LiteralPath $installedManifest -Raw | ConvertFrom-Json).version
+    if ($installedVersion -ne $required) {
+        throw "Bundled Harness dependency version mismatch: $name installed=$installedVersion required=$required"
+    }
 }
 
 & $node $npm $npmOptions "pnpm@$pnpmVersion"

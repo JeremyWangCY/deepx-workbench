@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-09-24
+
+### Fixed
+
+- Keep the Harness-required Cordis versions when updating modular Harness packages. DeepX now rejects an update if an exact Cordis dependency is replaced with a different version, preventing silent rollback loops such as 0.1.5-rc.3 failing to start without HMR.
+- Run Harness updates from DeepX's own progress page so stopping the old Harness no longer removes the progress bar. Failed updates stay on the page with the error and a way back to the restored Harness.
+- Restart the existing Harness if preparing an update fails before activation.
+
 ## [0.2.1] - 2026-09-24
 
 ### Changed

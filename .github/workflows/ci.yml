@@ -43,6 +43,9 @@ jobs:
       - name: Check fullscreen toolbar layout
         run: node scripts/test-toolbar-immersive.mjs
 
+      - name: Check Harness update progress flow
+        run: node scripts/test-update-progress.mjs
+
       - name: Lint Rust
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
