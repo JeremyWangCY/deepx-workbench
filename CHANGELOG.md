@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Restore toolbar progress events for DeepX, Harness, and marketplace updates by registering Tauri event listeners with the required target and reading the event payload.
 - Complete the progress bar when Harness or marketplace updates succeed.
+
 ## [0.2.0] - 2026-09-13
 
 ### Added
